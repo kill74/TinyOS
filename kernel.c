@@ -1,35 +1,128 @@
-/* kernel.c */
+/* kernel.c — Kernel entry point
+ *
+ * kernel_main() is called by boot.S after the stack is set up.
+ * It initialises every subsystem in dependency order and then
+ * enters an idle loop, waiting for interrupts to fire.
+ *
+ * Boot sequence:
+ *   GDT → Paging → IDT → IRQs → Timer → Keyboard → kmalloc → sti → idle
+ */
+
+#include "gdt.h"
+#include "idt.h"
+#include "irq.h"
+#include "paging.h"
+#include "timer.h"
+#include "keyboard.h"
+#include "kmalloc.h"
+#include "vga.h"
 #include <stdint.h>
 
-/* External initialization functions */
-extern void init_idt();
-extern void init_paging();
+/* The kernel's bump allocator will own memory from 2 MB to 4 MB.
+ * (The first 2 MB are used by the kernel image itself.) */
+#define HEAP_START  0x00200000   /* 2 MB */
+#define HEAP_END    0x00400000   /* 4 MB */
 
-/* Simple VGA text mode writing */
-void print_message(const char* message) {
-    /* VGA Text buffer starts at physical address 0xB8000 */
-    volatile uint16_t* vga_buffer = (uint16_t*)0xB8000;
-    int index = 0;
-    
-    while(message[index] != '\0') {
-        /* Character combined with color attributes (Light Grey on Black: 0x07) */
-        vga_buffer[index] = (uint16_t)message[index] | (uint16_t)0x0700;
-        index++;
-    }
+/* ── Decorative helpers ───────────────────────────────────────────────────── */
+
+static void print_separator(void) {
+    vga_set_color(VGA_DARK_GREY, VGA_BLACK);
+    vga_puts("  ────────────────────────────────────────\n");
+    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
 }
 
+static void print_ok(const char *label) {
+    vga_set_color(VGA_DARK_GREY, VGA_BLACK);
+    vga_puts("  [ ");
+    vga_set_color(VGA_LIGHT_GREEN, VGA_BLACK);
+    vga_puts("OK");
+    vga_set_color(VGA_DARK_GREY, VGA_BLACK);
+    vga_puts(" ]  ");
+    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
+    vga_puts(label);
+    vga_putchar('\n');
+}
+
+/* ── Kernel entry ─────────────────────────────────────────────────────────── */
+
 void kernel_main(void) {
-    /* 1. Setup Interrupts */
-    init_idt();
+    /* ── 1. VGA terminal — must be first so we can print anything ────────── */
+    vga_init();
 
-    /* 2. Setup Paging */
+    vga_set_color(VGA_LIGHT_CYAN, VGA_BLACK);
+    vga_puts("\n      Tiny OS\n");
+    vga_set_color(VGA_DARK_GREY, VGA_BLACK);
+    vga_puts("      Minimal x86 Kernel\n\n");
+    print_separator();
+
+    /* ── 2. GDT — defines code/data segments; must precede IDT ──────────── */
+    init_gdt();
+    print_ok("GDT  initialised (5 descriptors: null, kcode, kdata, ucode, udata)");
+
+    /* ── 3. Paging — enable virtual memory before we do much else ─────────  */
     init_paging();
+    print_ok("MMU  enabled (first 4 MB identity-mapped)");
 
-    /* 3. Output a success message! */
-    print_message("Tiny OS Booted! IDT and Paging Enabled.");
+    /* ── 4. IDT — install exception/interrupt gates ───────────────────────  */
+    init_idt();
+    print_ok("IDT  loaded (32 exception gates + 16 IRQ gates)");
 
-    /* Hang forever */
+    /* ── 5. IRQ — remap the 8259 PIC so hardware IRQs don't clash ─────────  */
+    init_irq();
+    print_ok("PIC  remapped (IRQ0–15  →  vectors 32–47)");
+
+    /* ── 6. Timer — PIT channel 0 at 100 Hz ──────────────────────────────  */
+    init_timer(100);
+    print_ok("PIT  running at 100 Hz (IRQ0 enabled)");
+
+    /* ── 7. Keyboard — PS/2 port, scancode set 1 ─────────────────────────  */
+    init_keyboard();
+    print_ok("KB   PS/2 keyboard ready (IRQ1 enabled)");
+
+    /* ── 8. Heap — simple bump allocator ─────────────────────────────────  */
+    kmalloc_init(HEAP_START, HEAP_END);
+    print_ok("HEAP bump allocator: 2 MB pool starting at 0x00200000");
+
+    /* ── Demo: allocate, use, then FREE — no leaks ───────────────────────  */
+    typedef struct { uint32_t x; uint32_t y; } point_t;
+
+    point_t *p  = (point_t *)kmalloc(sizeof(point_t));
+    point_t *p2 = (point_t *)kmalloc(sizeof(point_t));
+    p->x  = 10;   p->y  = 20;
+    p2->x = 100;  p2->y = 200;
+
+    vga_set_color(VGA_DARK_GREY, VGA_BLACK);
+    vga_printf("        alloc: p=(%u,%u)  p2=(%u,%u)\n",
+               p->x, p->y, p2->x, p2->y);
+
+    /* Free both allocations and verify the heap coalesces cleanly */
+    kfree(p);
+    kfree(p2);
+    kmalloc_check();    /* walk every block and verify canaries */
+    kmalloc_stats();    /* print used/free summary */
+    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
+
+    print_separator();
+
+    /* ── 9. Enable hardware interrupts ───────────────────────────────────  */
+    extern void interrupts_enable(void);
+    interrupts_enable();
+
+    vga_set_color(VGA_YELLOW, VGA_BLACK);
+    vga_puts("\n  All subsystems online. Interrupts enabled.\n");
+    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
+    vga_puts("  Type on your keyboard — characters will echo here.\n");
+    vga_puts("  Timer ticks are running silently in the background.\n\n");
+
+    vga_set_color(VGA_WHITE, VGA_BLACK);
+    vga_puts("  > ");
+    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
+
+    /* ── Idle loop ────────────────────────────────────────────────────────  */
+    /* `hlt` puts the CPU to sleep until the next interrupt fires.
+     * This is far better than a busy-wait: it saves power and lets the
+     * timer/keyboard handlers run cleanly. */
     while (1) {
-        /* __asm__ __volatile__ ("hlt"); */
+        __asm__ __volatile__ ("hlt");
     }
 }
