@@ -1,0 +1,97 @@
+/* syscall.c — System call implementation */
+
+#include "../include/syscall.h"
+#include "../include/log.h"
+#include "../drivers/vga.c"
+#include "../include/process.h"
+#include <stdint.h>
+
+/* Forward declarations for implementation functions */
+int32_t sys_write_impl(int32_t fd, const void *buf, uint32_t count);
+int32_t sys_exit_impl(int32_t status);
+int32_t sys_getpid_impl(void);
+void sys_yield_impl(void);
+
+/* Syscall handler */
+void syscall_handler(registers_t *regs) {
+    /* System call number is in eax */
+    int32_t syscall_num = regs->eax;
+    int32_t ret = 0;
+
+    switch (syscall_num) {
+        case SYS_WRITE:
+            /* sys_write(int fd, const void *buf, uint32_t count) */
+            /* Parameters: ebx=fd, ecx=buf, edx=count */
+            ret = sys_write_impl(regs->ebx, (const void *)regs->ecx, regs->edx);
+            break;
+            
+        case SYS_EXIT:
+            /* sys_exit(int status) */
+            /* Parameter: ebx=status */
+            sys_exit_impl(regs->ebx);
+            /* Should not return */
+            break;
+            
+        case SYS_GETPID:
+            /* sys_getpid() */
+            ret = sys_getpid_impl();
+            break;
+            
+        case SYS_YIELD:
+            /* sys_yield() */
+            sys_yield_impl();
+            ret = 0;
+            break;
+            
+        default:
+            /* Unknown syscall */
+            LOG_ERROR("Unknown syscall: %d", syscall_num);
+            ret = -1;
+            break;
+    }
+
+    /* Return value in eax */
+    regs->eax = ret;
+}
+
+/* Actual implementations (not wrappers - these are called by the wrappers above) */
+int32_t sys_write_impl(int32_t fd, const void *buf, uint32_t count) {
+    /* For simplicity, we only support fd=1 (stdout) */
+    if (fd != 1) {
+        return -1;
+    }
+
+    /* Use VGA driver to output the string */
+    const char *str = (const char *)buf;
+    for (uint32_t i = 0; i < count; i++) {
+        vga_putchar(str[i]);
+    }
+    return count;
+}
+
+int32_t sys_exit_impl(int32_t status) {
+    LOG_INFO("Process %d exiting with status %d", 
+             current_proc ? current_proc->pid : -1, status);
+    
+    /* Mark process as unused */
+    if (current_proc != (void*)0) {
+        current_proc->state = PROC_UNUSED;
+    }
+    
+    /* Schedule next process */
+    schedule();
+    
+    /* Should not reach here */
+    return 0;
+}
+
+int32_t sys_getpid_impl(void) {
+    if (current_proc != (void*)0) {
+        return current_proc->pid;
+    }
+    return -1;
+}
+
+void sys_yield_impl(void) {
+    yield();
+}

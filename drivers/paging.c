@@ -28,7 +28,8 @@
  * code and data. This lets us run without translating any existing addresses.
  */
 
-#include "paging.h"
+#include "../include/paging.h"
+#include "../include/log.h"
 #include <stdint.h>
 
 /* Both arrays must be 4 KB-aligned — the CPU ignores the low 12 bits of CR3
@@ -40,6 +41,7 @@ extern void load_page_directory(uint32_t *dir);
 extern void enable_paging(void);
 
 void init_paging(void) {
+    LOG_INFO("Initializing paging");
     /* ── Step 1: mark all 1024 directory entries as Not Present ─────────── */
     /* 0x00000002 = Supervisor | Read/Write | NOT Present
      * The Not-Present bit means the CPU will fault if any address in that
@@ -65,4 +67,5 @@ void init_paging(void) {
     /* ── Step 4: load CR3 and turn on the PG bit in CR0 ─────────────────── */
     load_page_directory(page_directory);
     enable_paging();
+    LOG_INFO("Paging initialized (first 4 MB identity-mapped)");
 }

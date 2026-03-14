@@ -8,14 +8,17 @@
  *   GDT → Paging → IDT → IRQs → Timer → Keyboard → kmalloc → sti → idle
  */
 
-#include "gdt.h"
-#include "idt.h"
-#include "irq.h"
-#include "paging.h"
-#include "timer.h"
-#include "keyboard.h"
-#include "kmalloc.h"
-#include "vga.h"
+#include "../include/gdt.h"
+#include "../include/idt.h"
+#include "../include/irq.h"
+#include "../include/paging.h"
+#include "../include/timer.h"
+#include "../include/keyboard.h"
+#include "../include/kmalloc.h"
+#include "../include/vga.h"
+#include "../include/log.h"
+#include "../include/process.h"
+#include "../include/syscall.h"
 #include <stdint.h>
 
 /* The kernel's bump allocator will own memory from 2 MB to 4 MB.
@@ -45,9 +48,23 @@ static void print_ok(const char *label) {
 
 /* ── Kernel entry ─────────────────────────────────────────────────────────── */
 
+/* Forward declarations for test processes */
+void process1_task(void);
+void process2_task(void);
+
+/* Simple string length function */
+static size_t strlen(const char *str) {
+    size_t len = 0;
+    while (str[len] != '\0') len++;
+    return len;
+}
+
 void kernel_main(void) {
     /* ── 1. VGA terminal — must be first so we can print anything ────────── */
     vga_init();
+
+    /* Initialize logging system */
+    log_init();
 
     vga_set_color(VGA_LIGHT_CYAN, VGA_BLACK);
     vga_puts("\n      Tiny OS\n");
@@ -83,6 +100,19 @@ void kernel_main(void) {
     kmalloc_init(HEAP_START, HEAP_END);
     print_ok("HEAP bump allocator: 2 MB pool starting at 0x00200000");
 
+    /* ── 9. Process Management ───────────────────────────────────────────  */
+    init_processing();
+    print_ok("Process manager initialized");
+
+    /* Register syscall handler */
+    isr_register_handler(0x80, syscall_handler);
+    LOG_INFO("Syscall handler registered");
+
+    /* Create test processes */
+    proc_create(process1_task, 1);
+    proc_create(process2_task, 2);
+    LOG_INFO("Created test processes");
+
     /* ── Demo: allocate, use, then FREE — no leaks ───────────────────────  */
     typedef struct { uint32_t x; uint32_t y; } point_t;
 
@@ -93,7 +123,7 @@ void kernel_main(void) {
 
     vga_set_color(VGA_DARK_GREY, VGA_BLACK);
     vga_printf("        alloc: p=(%u,%u)  p2=(%u,%u)\n",
-               p->x, p->y, p2->x, p2->y);
+            p->x, p->y, p2->x, p2->y);
 
     /* Free both allocations and verify the heap coalesces cleanly */
     kfree(p);
@@ -104,7 +134,7 @@ void kernel_main(void) {
 
     print_separator();
 
-    /* ── 9. Enable hardware interrupts ───────────────────────────────────  */
+    /* ── 10. Enable hardware interrupts ───────────────────────────────────  */
     extern void interrupts_enable(void);
     interrupts_enable();
 
@@ -124,5 +154,26 @@ void kernel_main(void) {
      * timer/keyboard handlers run cleanly. */
     while (1) {
         __asm__ __volatile__ ("hlt");
+    }
+}
+
+/* Simple test processes */
+void process1_task(void) {
+    const char *msg = "Process 1 running...\n";
+    while (1) {
+        sys_write(1, msg, strlen(msg));
+        sys_yield();
+        /* Simple delay */
+        for (volatile int i = 0; i < 1000000; i++);
+    }
+}
+
+void process2_task(void) {
+    const char *msg = "Process 2 running...\n";
+    while (1) {
+        sys_write(1, msg, strlen(msg));
+        sys_yield();
+        /* Simple delay */
+        for (volatile int i = 0; i < 1000000; i++);
     }
 }

@@ -30,8 +30,9 @@
  *               catching heap overflows, double-frees, and wild writes.
  */
 
-#include "kmalloc.h"
-#include "vga.h"
+#include "../include/kmalloc.h"
+#include "../include/vga.h"
+#include "../include/log.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -105,12 +106,14 @@ static void kernel_panic(void) {
 
 /* ── Public: initialise ───────────────────────────────────────────────────── */
 void kmalloc_init(uint32_t start, uint32_t end) {
+    LOG_INFO("Initializing heap (start: 0x%x, end: 0x%x)", start, end);
     heap_start = (uint8_t *)ALIGN_UP(start);
     heap_end   = (uint8_t *)end;
 
     /* The entire heap begins as one large free block. */
     size_t payload = (size_t)(heap_end - heap_start) - META_SZ;
     block_write((block_header_t *)heap_start, payload, 1);
+    LOG_INFO("Heap initialized with %u bytes available", payload);
 }
 
 /* ── Public: allocate ─────────────────────────────────────────────────────── */

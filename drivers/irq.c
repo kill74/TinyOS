@@ -10,8 +10,9 @@
  * back to the PIC, otherwise it will never fire that IRQ line again.
  */
 
-#include "irq.h"
-#include "idt.h"
+#include "../include/irq.h"
+#include "../include/idt.h"
+#include "../include/log.h"
 #include <stdint.h>
 
 /* ── PIC I/O port addresses ───────────────────────────────────────────────── */
@@ -104,6 +105,7 @@ void irq_handler(registers_t *regs) {
 
 /* ── Public: initialise IRQ subsystem ────────────────────────────────────── */
 void init_irq(void) {
+    LOG_INFO("Initializing IRQ controller");
     pic_remap();
 
     /* Start with all IRQs masked (disabled).
@@ -111,6 +113,7 @@ void init_irq(void) {
      * 0xFF = all masked, 0x00 = all enabled. */
     outb(PIC1_DATA, 0xFF);
     outb(PIC2_DATA, 0xFF);
+    LOG_INFO("IRQ controller initialized");
 }
 
 /* Enable (unmask) a single IRQ line. */

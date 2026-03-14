@@ -12,7 +12,8 @@
  *   4 — User Data    0x20 (ring 3, read/write)
  */
 
-#include "gdt.h"
+#include "../include/gdt.h"
+#include "../include/log.h"
 #include <stdint.h>
 
 /* ── Structures ───────────────────────────────────────────────────────────── */
@@ -75,6 +76,7 @@ static void gdt_set_gate(int num,
 
 /* ── Public: initialise the GDT ──────────────────────────────────────────── */
 void init_gdt(void) {
+    LOG_INFO("Initializing GDT");
     gdtp.limit = (uint16_t)(sizeof(struct gdt_entry) * GDT_ENTRIES - 1);
     gdtp.base  = (uint32_t)&gdt;
 
@@ -100,4 +102,5 @@ void init_gdt(void) {
     gdt_set_gate(4, 0, 0xFFFFFFFF, 0xF2, 0xCF);
 
     gdt_flush((uint32_t)&gdtp);
+    LOG_INFO("GDT initialized with %d entries", GDT_ENTRIES);
 }

@@ -8,7 +8,7 @@
  * We also talk to the VGA controller over I/O ports to move the hardware cursor.
  */
 
-#include "vga.h"
+#include "../include/vga.h"
 
 /* ── Constants ────────────────────────────────────────────────────────────── */
 #define VGA_WIDTH   80

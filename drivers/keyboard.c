@@ -11,9 +11,10 @@
  * We translate scancodes into ASCII using a simple lookup table.
  */
 
-#include "keyboard.h"
-#include "irq.h"
-#include "vga.h"
+#include "../include/keyboard.h"
+#include "../include/irq.h"
+#include "../include/vga.h"
+#include "../include/log.h"
 #include <stdint.h>
 
 #define KB_DATA_PORT  0x60
@@ -58,8 +59,10 @@ static void keyboard_callback(registers_t *regs) {
 
 /* ── Public API ───────────────────────────────────────────────────────────── */
 void init_keyboard(void) {
+    LOG_INFO("Initializing keyboard");
     irq_register_handler(1, keyboard_callback);
     irq_enable(1);
+    LOG_INFO("Keyboard initialized");
 }
 
 char keyboard_last_char(void) {

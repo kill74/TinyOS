@@ -9,9 +9,10 @@
  * can read to measure elapsed time.
  */
 
-#include "timer.h"
-#include "irq.h"
-#include "vga.h"
+#include "../include/timer.h"
+#include "../include/irq.h"
+#include "../include/vga.h"
+#include "../include/log.h"
 #include <stdint.h>
 
 /* ── PIT I/O ports ────────────────────────────────────────────────────────── */
@@ -38,6 +39,7 @@ static void timer_callback(registers_t *regs) {
 
 /* Configure channel 0 of the PIT to fire at `frequency_hz` Hz. */
 void init_timer(uint32_t frequency_hz) {
+    LOG_INFO("Initializing timer at %u Hz", frequency_hz);
     /* Guard: a zero frequency would cause division-by-zero. Fall back to 1 Hz. */
     if (frequency_hz == 0) frequency_hz = 1;
 
@@ -53,6 +55,7 @@ void init_timer(uint32_t frequency_hz) {
     /* Register our callback for IRQ0 and unmask it in the PIC */
     irq_register_handler(0, timer_callback);
     irq_enable(0);  /* declared in irq.h, no local extern needed */
+    LOG_INFO("Timer initialized (divisor: %u)", divisor);
 }
 
 /* Return the number of timer ticks since boot. */

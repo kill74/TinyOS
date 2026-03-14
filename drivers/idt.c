@@ -10,8 +10,9 @@
  * uniform register frame and call the C functions below.
  */
 
-#include "idt.h"
-#include "vga.h"
+#include "../include/idt.h"
+#include "../include/log.h"
+#include "../include/vga.h"
 #include <stdint.h>
 
 /* ── IDT structures ───────────────────────────────────────────────────────── */
@@ -125,6 +126,7 @@ static void idt_set_gate(uint8_t num, uint32_t base, uint16_t sel, uint8_t flags
 
 /* ── Public: initialise the IDT ──────────────────────────────────────────── */
 void init_idt(void) {
+    LOG_INFO("Initializing IDT");
     idtp.limit = (uint16_t)(sizeof(struct idt_entry) * 256 - 1);
     idtp.base  = (uint32_t)&idt;
 
@@ -187,4 +189,5 @@ void init_idt(void) {
     idt_set_gate(47, (uint32_t)irq15, 0x08, 0x8E);
 
     idt_load((uint32_t)&idtp);
+    LOG_INFO("IDT initialized with 256 entries");
 }
