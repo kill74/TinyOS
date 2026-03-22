@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make gcc-multilib binutils qemu-system-x86
+
+      - name: Build kernel
+        run: make CROSS=
+
+      - name: Verify expected symbols
+        run: |
+          nm kernel.bin | grep " _start" >/dev/null
+          nm kernel.bin | grep " kernel_main" >/dev/null
+
+      - name: QEMU smoke boot (3s)
+        run: |
+          set +e
+          timeout 3s qemu-system-i386 \
+            -kernel kernel.bin \
+            -nographic \
+            -display none \
+            -serial none \
+            -monitor none \
+            -no-reboot \
+            -no-shutdown
+          CODE=$?
+          set -e
+
+          if [ "$CODE" -eq 124 ]; then
+            echo "QEMU ran for 3 seconds without crashing."
+            exit 0
+          fi
+
+          if [ "$CODE" -eq 0 ]; then
+            echo "QEMU exited cleanly before timeout."
+            exit 0
+          fi
+
+          echo "QEMU exited unexpectedly with code $CODE"
+          exit $CODE

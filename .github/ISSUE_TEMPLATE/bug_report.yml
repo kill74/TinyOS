@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a reproducible TinyOS bug
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file this bug.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+      placeholder: Short and clear bug summary
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands and actions to reproduce the issue.
+      placeholder: |
+        1. make CROSS=
+        2. qemu-system-i386 -kernel kernel.bin
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What should happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, toolchain version, QEMU version
+      placeholder: Ubuntu 24.04, gcc 13, qemu-system-i386 8.x
+    validations:
+      required: true
