@@ -40,13 +40,15 @@ uint32_t first_page_table[1024] __attribute__((aligned(4096)));
 extern void load_page_directory(uint32_t *dir);
 extern void enable_paging(void);
 
-void init_paging(void) {
+void init_paging(void)
+{
     LOG_INFO("Initializing paging");
     /* ── Step 1: mark all 1024 directory entries as Not Present ─────────── */
     /* 0x00000002 = Supervisor | Read/Write | NOT Present
      * The Not-Present bit means the CPU will fault if any address in that
      * 4 MB region is accessed — safe until we explicitly map something. */
-    for (int i = 0; i < 1024; i++) {
+    for (int i = 0; i < 1024; i++)
+    {
         page_directory[i] = 0x00000002;
     }
 
@@ -54,7 +56,8 @@ void init_paging(void) {
     /* Each page table entry points to one 4 KB physical page.
      * `i * 0x1000` is the physical address of the i-th page (page frame i).
      * Flags: Present (1) | Writable (2) = 0x3 */
-    for (uint32_t i = 0; i < 1024; i++) {
+    for (uint32_t i = 0; i < 1024; i++)
+    {
         first_page_table[i] = (i * 0x1000) | 0x3;
     }
 

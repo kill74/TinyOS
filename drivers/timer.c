@@ -13,16 +13,17 @@
 #include "../include/irq.h"
 #include "../include/vga.h"
 #include "../include/log.h"
+#include "../include/process.h"
 #include <stdint.h>
 
 /* ── PIT I/O ports ────────────────────────────────────────────────────────── */
-#define PIT_CHANNEL0  0x40   /* Channel 0 data port (connected to IRQ0)  */
-#define PIT_CMD       0x43   /* PIT command/mode register                */
+#define PIT_CHANNEL0 0x40 /* Channel 0 data port (connected to IRQ0)  */
+#define PIT_CMD 0x43      /* PIT command/mode register                */
 
 /* Command byte: channel 0, lo/hi byte access, mode 3 (square wave), binary */
-#define PIT_CMD_BYTE  0x36
+#define PIT_CMD_BYTE 0x36
 
-#define PIT_BASE_HZ   1193182UL
+#define PIT_BASE_HZ 1193182UL
 
 extern void outb(uint16_t port, uint8_t value);
 
@@ -30,18 +31,22 @@ extern void outb(uint16_t port, uint8_t value);
 static volatile uint32_t tick_count = 0;
 
 /* ── IRQ0 handler ─────────────────────────────────────────────────────────── */
-static void timer_callback(registers_t *regs) {
-    (void)regs;          /* unused — suppress compiler warning */
+static void timer_callback(registers_t *regs)
+{
+    (void)regs; /* unused — suppress compiler warning */
     tick_count++;
+    proc_tick(tick_count);
 }
 
 /* ── Public API ───────────────────────────────────────────────────────────── */
 
 /* Configure channel 0 of the PIT to fire at `frequency_hz` Hz. */
-void init_timer(uint32_t frequency_hz) {
+void init_timer(uint32_t frequency_hz)
+{
     LOG_INFO("Initializing timer at %u Hz", frequency_hz);
     /* Guard: a zero frequency would cause division-by-zero. Fall back to 1 Hz. */
-    if (frequency_hz == 0) frequency_hz = 1;
+    if (frequency_hz == 0)
+        frequency_hz = 1;
 
     uint32_t divisor = PIT_BASE_HZ / frequency_hz;
 
@@ -54,11 +59,12 @@ void init_timer(uint32_t frequency_hz) {
 
     /* Register our callback for IRQ0 and unmask it in the PIC */
     irq_register_handler(0, timer_callback);
-    irq_enable(0);  /* declared in irq.h, no local extern needed */
+    irq_enable(0); /* declared in irq.h, no local extern needed */
     LOG_INFO("Timer initialized (divisor: %u)", divisor);
 }
 
 /* Return the number of timer ticks since boot. */
-uint32_t timer_get_ticks(void) {
+uint32_t timer_get_ticks(void)
+{
     return tick_count;
 }

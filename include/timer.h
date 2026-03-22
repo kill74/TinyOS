@@ -2,5 +2,5 @@
 #pragma once
 #include <stdint.h>
 
-void     init_timer(uint32_t frequency_hz);
+void init_timer(uint32_t frequency_hz);
 uint32_t timer_get_ticks(void);

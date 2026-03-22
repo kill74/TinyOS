@@ -34,18 +34,18 @@ Then record 10-20 seconds showing:
 
 ## Current capabilities
 
-| Area            | Status  | Notes                                        |
-| --------------- | ------- | -------------------------------------------- |
-| Boot            | Done    | Multiboot-compliant entry in `boot.S`        |
-| CPU setup       | Done    | GDT + IDT + interrupt stubs                  |
-| Memory          | Done    | Paging + kernel heap allocator               |
-| IRQs            | Done    | PIC remap + IRQ dispatch                     |
-| Timer           | Done    | PIT at configurable frequency                |
-| Keyboard        | Done    | PS/2 scancode handling                       |
-| Syscalls        | Done    | `int 0x80` with basic syscall table          |
-| Multitasking    | Done    | Basic process table + round-robin scheduling |
-| Filesystem      | Planned | `fs/` reserved                               |
-| Userland loader | Planned | ELF/process image loading                    |
+| Area            | Status  | Notes                                                       |
+| --------------- | ------- | ----------------------------------------------------------- |
+| Boot            | Done    | Multiboot-compliant entry in `boot.S`                       |
+| CPU setup       | Done    | GDT + IDT + interrupt stubs                                 |
+| Memory          | Done    | Paging + kernel heap allocator                              |
+| IRQs            | Done    | PIC remap + IRQ dispatch                                    |
+| Timer           | Done    | PIT at configurable frequency                               |
+| Keyboard        | Done    | PS/2 scancode handling                                      |
+| Syscalls        | Done    | `int 0x80` with `write`, `exit`, `getpid`, `yield`, `sleep` |
+| Multitasking    | Done    | Round-robin + timer-driven sleep/wakeup                     |
+| Filesystem      | Planned | `fs/` reserved                                              |
+| Userland loader | Planned | ELF/process image loading                                   |
 
 ## Architecture at a glance
 
@@ -148,7 +148,7 @@ See `.github/workflows/ci.yml`.
 
 ### v0.5.0
 
-- Improved process states (sleep/block/wakeup)
+- Improved process states (sleep/block/wakeup) (partially implemented: sleep/wakeup)
 - Priority scheduling experiments
 
 ## Known limitations
@@ -157,6 +157,16 @@ See `.github/workflows/ci.yml`.
 - No user/kernel memory isolation yet
 - No persistent filesystem or userspace binary loading
 - Single-core assumptions throughout interrupt and process paths
+
+## New in Unreleased: sleep/wakeup scheduling
+
+TinyOS now supports timer-driven process sleeping:
+
+- `sys_sleep(ticks)` blocks the current process for a tick interval.
+- Timer IRQ (`IRQ0`) calls into process management each tick.
+- Sleeping processes automatically transition back to `READY` when their wake tick is reached.
+
+This is a stepping stone toward richer process states (`blocked`, `wakeup`, priorities) in future releases.
 
 ## Contributing
 

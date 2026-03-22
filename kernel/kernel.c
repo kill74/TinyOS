@@ -23,18 +23,20 @@
 
 /* The kernel's bump allocator will own memory from 2 MB to 4 MB.
  * (The first 2 MB are used by the kernel image itself.) */
-#define HEAP_START  0x00200000   /* 2 MB */
-#define HEAP_END    0x00400000   /* 4 MB */
+#define HEAP_START 0x00200000 /* 2 MB */
+#define HEAP_END 0x00400000   /* 4 MB */
 
 /* ── Decorative helpers ───────────────────────────────────────────────────── */
 
-static void print_separator(void) {
+static void print_separator(void)
+{
     vga_set_color(VGA_DARK_GREY, VGA_BLACK);
     vga_puts("  ────────────────────────────────────────\n");
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
 }
 
-static void print_ok(const char *label) {
+static void print_ok(const char *label)
+{
     vga_set_color(VGA_DARK_GREY, VGA_BLACK);
     vga_puts("  [ ");
     vga_set_color(VGA_LIGHT_GREEN, VGA_BLACK);
@@ -53,13 +55,18 @@ void process1_task(void);
 void process2_task(void);
 
 /* Simple string length function */
-static size_t strlen(const char *str) {
+static size_t strlen(const char *str)
+{
     size_t len = 0;
-    while (str[len] != '\0') len++;
+    while (str[len] != '\0')
+    {
+        len++;
+    }
     return len;
 }
 
-void kernel_main(void) {
+void kernel_main(void)
+{
     /* ── 1. VGA terminal — must be first so we can print anything ────────── */
     vga_init();
 
@@ -114,22 +121,28 @@ void kernel_main(void) {
     LOG_INFO("Created test processes");
 
     /* ── Demo: allocate, use, then FREE — no leaks ───────────────────────  */
-    typedef struct { uint32_t x; uint32_t y; } point_t;
+    typedef struct
+    {
+        uint32_t x;
+        uint32_t y;
+    } point_t;
 
-    point_t *p  = (point_t *)kmalloc(sizeof(point_t));
+    point_t *p = (point_t *)kmalloc(sizeof(point_t));
     point_t *p2 = (point_t *)kmalloc(sizeof(point_t));
-    p->x  = 10;   p->y  = 20;
-    p2->x = 100;  p2->y = 200;
+    p->x = 10;
+    p->y = 20;
+    p2->x = 100;
+    p2->y = 200;
 
     vga_set_color(VGA_DARK_GREY, VGA_BLACK);
     vga_printf("        alloc: p=(%u,%u)  p2=(%u,%u)\n",
-            p->x, p->y, p2->x, p2->y);
+               p->x, p->y, p2->x, p2->y);
 
     /* Free both allocations and verify the heap coalesces cleanly */
     kfree(p);
     kfree(p2);
-    kmalloc_check();    /* walk every block and verify canaries */
-    kmalloc_stats();    /* print used/free summary */
+    kmalloc_check(); /* walk every block and verify canaries */
+    kmalloc_stats(); /* print used/free summary */
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
 
     print_separator();
@@ -152,28 +165,29 @@ void kernel_main(void) {
     /* `hlt` puts the CPU to sleep until the next interrupt fires.
      * This is far better than a busy-wait: it saves power and lets the
      * timer/keyboard handlers run cleanly. */
-    while (1) {
-        __asm__ __volatile__ ("hlt");
+    while (1)
+    {
+        __asm__ __volatile__("hlt");
     }
 }
 
 /* Simple test processes */
-void process1_task(void) {
+void process1_task(void)
+{
     const char *msg = "Process 1 running...\n";
-    while (1) {
+    while (1)
+    {
         sys_write(1, msg, strlen(msg));
-        sys_yield();
-        /* Simple delay */
-        for (volatile int i = 0; i < 1000000; i++);
+        sys_sleep(25); /* 250 ms at 100 Hz */
     }
 }
 
-void process2_task(void) {
+void process2_task(void)
+{
     const char *msg = "Process 2 running...\n";
-    while (1) {
+    while (1)
+    {
         sys_write(1, msg, strlen(msg));
-        sys_yield();
-        /* Simple delay */
-        for (volatile int i = 0; i < 1000000; i++);
+        sys_sleep(40); /* 400 ms at 100 Hz */
     }
 }

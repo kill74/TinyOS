@@ -14,6 +14,7 @@ This project follows Semantic Versioning.
 - CI workflow with build + QEMU smoke boot
 - Community health files (issue templates, PR template, contribution guide)
 - Repository documentation upgrades and roadmap
+- Timer-driven process sleep/wakeup support via `sys_sleep(ticks)`
 
 ### Changed
 

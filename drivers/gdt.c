@@ -21,27 +21,29 @@
 /* A single 8-byte GDT entry (descriptor).
  * The layout is non-obvious because it evolved across CPU generations.
  * See Intel SDM Vol.3 §3.4.5 for the full picture. */
-struct gdt_entry {
-    uint16_t limit_low;    /* Bits 15:0  of the segment limit          */
-    uint16_t base_low;     /* Bits 15:0  of the base address            */
-    uint8_t  base_mid;     /* Bits 23:16 of the base address            */
-    uint8_t  access;       /* Access byte (present, ring, type flags)   */
-    uint8_t  granularity;  /* Bits 19:16 of limit + 4-bit flags         */
-    uint8_t  base_high;    /* Bits 31:24 of the base address            */
+struct gdt_entry
+{
+    uint16_t limit_low;  /* Bits 15:0  of the segment limit          */
+    uint16_t base_low;   /* Bits 15:0  of the base address            */
+    uint8_t base_mid;    /* Bits 23:16 of the base address            */
+    uint8_t access;      /* Access byte (present, ring, type flags)   */
+    uint8_t granularity; /* Bits 19:16 of limit + 4-bit flags         */
+    uint8_t base_high;   /* Bits 31:24 of the base address            */
 } __attribute__((packed));
 
 /* The 6-byte value loaded into GDTR (the GDT register). */
-struct gdt_ptr {
-    uint16_t limit;        /* Byte length of the GDT minus 1            */
-    uint32_t base;         /* Linear address of the first GDT entry     */
+struct gdt_ptr
+{
+    uint16_t limit; /* Byte length of the GDT minus 1            */
+    uint32_t base;  /* Linear address of the first GDT entry     */
 } __attribute__((packed));
 
 /* ── Module data ──────────────────────────────────────────────────────────── */
 #define GDT_ENTRIES 5
 static struct gdt_entry gdt[GDT_ENTRIES];
-static struct gdt_ptr   gdtp;
+static struct gdt_ptr gdtp;
 
-extern void gdt_flush(uint32_t gdt_ptr_addr);   /* defined in helpers.S */
+extern void gdt_flush(uint32_t gdt_ptr_addr); /* defined in helpers.S */
 
 /* ── Helper: fill one descriptor ─────────────────────────────────────────── */
 /*
@@ -63,22 +65,24 @@ extern void gdt_flush(uint32_t gdt_ptr_addr);   /* defined in helpers.S */
  */
 static void gdt_set_gate(int num,
                          uint32_t base, uint32_t limit,
-                         uint8_t access, uint8_t gran) {
-    gdt[num].base_low   = (uint16_t)(base & 0xFFFF);
-    gdt[num].base_mid   = (uint8_t)((base >> 16) & 0xFF);
-    gdt[num].base_high  = (uint8_t)((base >> 24) & 0xFF);
+                         uint8_t access, uint8_t gran)
+{
+    gdt[num].base_low = (uint16_t)(base & 0xFFFF);
+    gdt[num].base_mid = (uint8_t)((base >> 16) & 0xFF);
+    gdt[num].base_high = (uint8_t)((base >> 24) & 0xFF);
 
-    gdt[num].limit_low  = (uint16_t)(limit & 0xFFFF);
+    gdt[num].limit_low = (uint16_t)(limit & 0xFFFF);
     gdt[num].granularity = (uint8_t)(((limit >> 16) & 0x0F) | (gran & 0xF0));
 
-    gdt[num].access     = access;
+    gdt[num].access = access;
 }
 
 /* ── Public: initialise the GDT ──────────────────────────────────────────── */
-void init_gdt(void) {
+void init_gdt(void)
+{
     LOG_INFO("Initializing GDT");
     gdtp.limit = (uint16_t)(sizeof(struct gdt_entry) * GDT_ENTRIES - 1);
-    gdtp.base  = (uint32_t)&gdt;
+    gdtp.base = (uint32_t)&gdt;
 
     /* 0: Null — all fields zero */
     gdt_set_gate(0, 0, 0, 0, 0);
