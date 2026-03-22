@@ -180,11 +180,3 @@ Contributions are welcome.
 
 - Changelog: `CHANGELOG.md`
 - Release process: `docs/RELEASE_PROCESS.md`
-
-## Suggested next showcase upgrades
-
-To separate this project from other kernel repos on GitHub:
-
-1. Add a short boot GIF at the top of this README.
-2. Add architecture and memory layout diagrams.
-3. Add one standout feature branch (ELF loader or user mode isolation) with a technical write-up in `docs/`.
