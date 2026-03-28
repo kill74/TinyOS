@@ -114,11 +114,22 @@ void shell_task(void)
 {
     (void)process1_task; // avoid unused; they are linked for run commands
     (void)process2_task;
-    const char *welcome = "TinyOS Shell. Type 'help' for commands.\n";
+    const char *welcome = "\n\
+  ____                  _             _   _              \n\
+ |  _ \\ ___  ___ ___ __| |_ __ _  __ | |_(_) ___  _ __  \n\
+ | |_) / _ \\/ __/ __/ _` | '__| |/ / | __| |/ _ \\| '_ \\ \n\
+ |  _ < (_) \\__ \\__ (_| | |  |   <  | |_| | (_) | | | |)\n\
+ |_| \\_\\___/|___/___\\__,_|_|  |_|\\_\\  \\__|_|\\___/|_| |_|\n\
+\n\
+Welcome to TinyOS Shell. Type 'help' for commands.\n";
     sys_write(1, welcome, str_len(welcome));
     while (1) {
+        /* Set prompt color: light cyan on black */
+        vga_set_color(VGA_LIGHT_CYAN, VGA_BLACK);
         const char *prompt = "> ";
-        sys_write(1, prompt, 2);
+        sys_write(1, prompt, str_len(prompt));
+        /* Reset to default colour (light grey on black) */
+        vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
         char line[128]; int idx = 0;
         while (idx < (int)sizeof(line) - 1) {
             if (keyboard_has_char()) {
@@ -142,7 +153,19 @@ void shell_task(void)
         }
         line[idx] = '\0';
         if (str_eq(line, "help")) {
-            const char *h = "Commands: help, echo <text>, start1, start2, ps, clear\n";
+            const char *h = "\n\
+Available commands:\n\
+  help    - Show this help\n\
+  echo <text> - Print text\n\
+  start1  - Start test task 1\n\
+  start2  - Start test task 2\n\
+  ps      - List processes\n\
+  clear   - Clear screen\n\
+  log <level> - Set log level (none|error|warn|info|debug)\n\
+  kill <pid> - Kill process by PID\n\
+  ticks   - Show timer ticks\n\
+  exit    - Exit shell (yields)\n\
+\n";
             sys_write(1, h, str_len(h));
         } else if (strn_cmp(line, "echo ", 5) == 0) {
             sys_write(1, line + 5, str_len(line + 5));

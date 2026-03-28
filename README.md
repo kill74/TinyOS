@@ -1,182 +1,162 @@
 # TinyOS
 
 [![CI](https://github.com/kill74/TinyOS/actions/workflows/ci.yml/badge.svg)](https://github.com/kill74/TinyOS/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A bare-metal 32-bit x86 kernel written in C and Assembly.
+A clean, educational, 32-bit x86 bare-metal kernel written in C and assembly.  
+TinyOS demonstrates core operating‑system concepts—bootstrapping, memory management, interrupt handling, process scheduling, syscalls, and a transition to user mode—while remaining small enough to read and modify in a single sitting.
 
-TinyOS boots with no host OS support, initializes core CPU structures (GDT/IDT/paging), handles hardware interrupts, exposes a small syscall interface, and runs cooperative test processes with round-robin scheduling.
+---
 
-## Why this project stands out
+## 🚀 Features
 
-- Freestanding kernel code (no libc, no host runtime)
-- End-to-end boot chain from multiboot entry to multitasking demo
-- Clear subsystem boundaries (memory, interrupts, drivers, scheduler)
-- CI build + QEMU smoke boot for reproducibility
+- **Fully freestanding** – no libc, no host runtime.
+- **Multiboot‑compatible** entry (`boot.S`) loads via QEMU, Bochs, or real hardware.
+- **CPU setup** – GDT (kernel/user segments), IDT (exceptions & IRQs), PIC remap.
+- **Memory management** – identity‑mapped kernel, per‑process page directories, two‑level paging, kernel heap (first‑fit with coalescing and canaries).
+- **Interrupts** – programmable interval timer (100 Hz) and PS/2 keyboard driver with ring buffer.
+- **Process management** – cooperative round‑robin scheduler, process creation, destruction, sleep/wakeup, per‑process stack and page directory.
+- **System calls** – `int 0x80` interface with `write`, `exit`, `getpid`, `yield`, `sleep`, `setlog`.
+- **User‑mode transition** – `iret`‑based ring‑3 switch, dedicated user memory region, tiny user‑space runtime (`u_printf`, etc.).
+- **Developer shell** – interactive prompt with colored prompt, command history (via backspace), process inspection, memory stats, log level control, and test‑task spawning.
+- **Build system** – simple Makefile, works with host GCC or a `i686-elf-*` cross‑toolchain.
+- **Continuous integration** – GitHub Actions validates build and runs a QEMU smoke test on every push.
 
-## Demo and proof
+---
 
-Add these assets to make your repository visually strong:
+## 📖 Getting Started
 
-- Boot demo GIF: `docs/media/boot-demo.gif`
-- Architecture diagram PNG: `docs/media/architecture.png`
+### Prerequisites
 
-Recommended capture command (Linux):
+- GNU Make
+- NASM (or any x86 assembler; we use GNU `as` via the Makefile)
+- GCC cross‑compiler for i686‑elf **or** host `gcc` with `-m32`
+- QEMU (any recent version)
 
-```bash
-qemu-system-i386 -kernel kernel.bin
-```
-
-Then record 10-20 seconds showing:
-
-1. Kernel startup log
-2. Keyboard echo
-3. Process 1 / Process 2 yielding output
-
-## Current capabilities
-
-| Area            | Status  | Notes                                                       |
-| --------------- | ------- | ----------------------------------------------------------- |
-| Boot            | Done    | Multiboot-compliant entry in `boot.S`                       |
-| CPU setup       | Done    | GDT + IDT + interrupt stubs                                 |
-| Memory          | Done    | Paging + kernel heap allocator                              |
-| IRQs            | Done    | PIC remap + IRQ dispatch                                    |
-| Timer           | Done    | PIT at configurable frequency                               |
-| Keyboard        | Done    | PS/2 scancode handling                                      |
-| Syscalls        | Done    | `int 0x80` with `write`, `exit`, `getpid`, `yield`, `sleep` |
-| Multitasking    | Done    | Round-robin + timer-driven sleep/wakeup                     |
-| Filesystem      | Planned | `fs/` reserved                                              |
-| Userland loader | Planned | ELF/process image loading                                   |
-
-## Architecture at a glance
-
-```text
-bootloader -> boot.S -> kernel_main()
-					 -> init_gdt()
-					 -> init_paging()
-					 -> init_idt()
-					 -> init_irq()
-					 -> init_timer(100)
-					 -> init_keyboard()
-					 -> kmalloc_init()
-					 -> init_processing()
-					 -> register int 0x80 syscall handler
-					 -> create test processes
-					 -> idle loop (hlt)
-```
-
-## Project layout
-
-```text
-.
-├── boot.S
-├── helpers.S
-├── isr.S
-├── process.S
-├── process.c
-├── linker.ld
-├── Makefile
-├── drivers/
-├── include/
-├── kernel/
-├── arch/
-├── fs/
-├── docs/
-└── .github/
-```
-
-## Quick start (60 seconds)
-
-### Option A: host compiler (Linux)
-
-Install:
-
+#### On Ubuntu/Debian
 ```bash
 sudo apt-get update
-sudo apt-get install -y make gcc-multilib binutils qemu-system-x86
+sudo apt-get install -y make gcc nasm binutils qemu-system-x86
 ```
 
-Build and run:
-
+#### On macOS (with Homebrew)
 ```bash
-make CROSS=
-make CROSS= run
+brew install make nasm binutils qemu
 ```
 
-### Option B: cross compiler (`i686-elf-*`)
-
-If your toolchain is prefixed (`i686-elf-gcc`, `i686-elf-ld`, etc.):
+### Build & Run
 
 ```bash
+# Clone the repo
+git clone https://github.com/kill74/TinyOS.git
+cd TinyOS
+
+# Build (uses cross‑compiler if present, otherwise host gcc -m32)
 make
+
+# Run in QEMU
 make run
 ```
 
-## Build details
+You should see the TinyOS boot banner, a developer shell prompt (`> `), and the user‑mode “Hello from user mode!” program run automatically.
 
-- Assembles: `boot.S`, `helpers.S`, `isr.S`, `process.S`
-- Compiles: drivers + kernel + `process.c`
-- Links with: `linker.ld` into `kernel.bin`
+### Common Commands in the Shell
+```
+help        – show command list
+echo <text> – print text
+start1/start2 – spawn test tasks
+ps          – list processes
+clear       – clear screen
+log <lvl>   – set log level (none|error|warn|info|debug)
+kill <pid>  – kill a process by PID
+ticks       – display timer ticks
+exit        – yield the shell (returns to scheduler)
+```
 
-## CI
+---
 
-GitHub Actions workflow:
+## 🏗️ Project Layout
 
-1. Installs toolchain dependencies
-2. Builds kernel using `make CROSS=`
-3. Verifies `_start` and `kernel_main` symbols exist
-4. Runs a short QEMU smoke boot
+```
+.
+├── boot.S           # Multiboot header & entry point
+├── helpers.S        # I/O port helpers (outb/inb)
+├── isr.S            # ISR stubs & fault handlers
+├── process.S        # Context switch, yield, switch_to_user (asm)
+├── process.c        # Process management, scheduling, paging setup
+├── kernel/
+│   ├── kernel.c     # Main kernel entry & subsystem init
+│   ├── syscall.c    # Syscall dispatcher & implementations
+│   └── switch_to_user.c  # (placeholder for future user‑mode helpers)
+├── drivers/
+│   ├── gdt.c        # Global Descriptor Table
+│   ├── idt.c        # Interrupt Descriptor Table
+│   ├── irq.c        # PIC remap & IRQ handling
+│   ├── keyboard.c   # PS/2 scancode → ASCII + ring buffer
+│   ├── paging.c     # Physical/virtual memory management
+│   ├── timer.c      # PIT 8253/8254 at 100 Hz
+│   ├── vga.c        # Text‑mode VGA driver (80×25)
+│   ├── kmalloc.c    # Kernel heap allocator with canaries
+│   └── log.c        # Simple kernel logger (levels, printf)
+├── include/         # Public headers (vga.h, paging.h, syscall.h, …)
+├── user/
+│   ├── lib.h/c      # Tiny user‑space runtime (u_printf, etc.)
+│   ├── crt0.S       # Entry point for user programs
+│   ├── program.c    # Demo user program
+│   └── ld.script    # Linker script for flat binary at 0x0
+├── fs/              # (future) filesystem stubs
+├── docs/            # Documentation, diagrams, media
+├── .github/         # CI workflows, issue/PR templates
+├── Makefile
+└── linker.ld        # Linker script (places kernel at 1 MiB)
+```
 
-See `.github/workflows/ci.yml`.
+---
 
-## Roadmap
+## 🛣️ Roadmap
 
-### v0.2.0
+| Version | Target |
+|---------|--------|
+| **v0.2.0** | Solidify user‑mode transition, add basic ELF loader, expand syscall set (`open`, `read`, `close`). |
+| **v0.3.0** | Implement a minimal VFS layer (in‑memory `tmpfs`), add `fork`/`exec`‑style process loading. |
+| **v0.4.0** | Priority‑based scheduler, preemptive multitasking via timer IRQ, add support for SMP boot (AP init). |
+| **v0.5.0** | Dynamic user heap, shared libraries, rudimentary file‑system (FAT12), and a tiny POSIX‑like shell. |
 
-- User mode transition (ring 3)
-- Safer context switching and scheduler fixes
+Each version is accompanied by a changelog entry and tag.
 
-### v0.3.0
+---
 
-- Minimal VFS abstraction
-- Initramfs read support
-- `sys_read`/`sys_open` syscall groundwork
+## 🐞 Known Limitations
 
-### v0.4.0
+- The scheduler is cooperative; a CPU‑intensive user task will stall the system until it yields (by design, but preemptive tick‑based scheduling is planned).
+- Memory protection relies on paging; writes to kernel‑only addresses from user mode trigger a page fault (logged) but do not yet trigger a proper kernel panic or signal.
+- Only a single CPU core is supported; secondary cores are left in the halted state.
+- Persistent storage and filesystems are stubs; `sys_open`/`sys_read`/`sys_write` currently only handle stdout/stderr and the in‑memory user region.
+- The VGA driver does not support hardware scrolling or Unicode; it is a classic 8×16 font text mode.
 
-- ELF loader for user programs
-- Tiny userspace shell
+---
 
-### v0.5.0
+## 🤝 Contributing
 
-- Improved process states (sleep/block/wakeup) (partially implemented: sleep/wakeup)
-- Priority scheduling experiments
+We welcome contributions! Please follow these steps:
 
-## Known limitations
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feat/awesome-feature`).
+3. Make your changes, ensuring you follow the existing code style.
+4. Add or update tests (if applicable).
+5. Run `make` and `make run` to verify nothing is broken.
+6. Commit with a clear message (`git commit -m "feat: add xyz"`).
+7. Push to your fork and open a Pull Request.
 
-- Scheduler context switch path is intentionally minimal and needs hardening
-- No user/kernel memory isolation yet
-- No persistent filesystem or userspace binary loading
-- Single-core assumptions throughout interrupt and process paths
+Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed guidelines, and use the issue and pull‑request templates provided in `.github/`.
 
-## New in Unreleased: sleep/wakeup scheduling
+---
 
-TinyOS now supports timer-driven process sleeping:
+## 📄 License
 
-- `sys_sleep(ticks)` blocks the current process for a tick interval.
-- Timer IRQ (`IRQ0`) calls into process management each tick.
-- Sleeping processes automatically transition back to `READY` when their wake tick is reached.
+TinyOS is licensed under the MIT License – see the [`LICENSE`](LICENSE) file for details.
 
-This is a stepping stone toward richer process states (`blocked`, `wakeup`, priorities) in future releases.
+---
 
-## Contributing
-
-Contributions are welcome.
-
-- Read `CONTRIBUTING.md`
-- Use issue templates in `.github/ISSUE_TEMPLATE/`
-- Follow PR checklist in `.github/pull_request_template.md`
-
-## Release and changelog
-
-- Changelog: `CHANGELOG.md`
-- Release process: `docs/RELEASE_PROCESS.md`
+*Happy hacking!*  
+— The TinyOS maintainers

@@ -71,6 +71,17 @@ void kernel_main(void)
 {
     /* ── 1. VGA terminal — must be first so we can print anything ────────── */
     vga_init();
+    /* Print a nice boot banner */
+    vga_set_color(VGA_LIGHT_CYAN, VGA_BLACK);
+    vga_puts("\n");
+    vga_puts("  ____                  _             _   _              \n");
+    vga_puts(" |  _ \\ ___  ___ ___ __| |_ __ _  __ | |_(_) ___  _ __  \n");
+    vga_puts(" | |_) / _ \\/ __/ __/ _` | '__| |/ / | __| |/ _ \\| '_ \\ \n");
+    vga_puts(" |  _ < (_) \\__ \\__ (_| | |  |   <  | |_| | (_) | | | |)\n");
+    vga_puts(" |_| \\_\\___/|___/___\\__,_|_|  |_|\\_\\  \\__|_|\\___/|_| |_|\n");
+    vga_puts("\n");
+    vga_set_color(VGA_DARK_GREY, VGA_BLACK);
+    vga_puts("      Minimal x86 Kernel\n\n");
 
     /* Initialize logging system */
     log_init();

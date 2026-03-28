@@ -81,16 +81,57 @@ int proc_create(void (*entry_point)(void), int pid)
         return -1;
     }
 
-    /* Set up per-process page directory (inherit from kernel for now) */
+    /* Set up per-process page directory */
     extern uint32_t page_directory[1024];
+    extern uint32_t first_page_table[];
+    extern const uint8_t USERPROG_IMAGE[];
+    extern const size_t  USERPROG_IMAGE_SIZE;
     proc->page_dir = (uint32_t *)kmalloc(1024 * sizeof(uint32_t));
-    if (proc->page_dir != NULL) {
-        for (int i = 0; i < 1024; i++) {
-            proc->page_dir[i] = page_directory[i];
-        }
+    if (!proc->page_dir) {
+        /* Fallback to kernel identity map if allocation fails */
+        proc->page_dir = page_directory;
     } else {
-        proc->page_dir = page_directory; /* fallback if kmalloc fails */
+        /* Clear the directory (mark all entries Not Present) */
+        for (int i = 0; i < 1024; i++)
+            proc->page_dir[i] = 0x00000002;   /* Supervisor | RW | !Present */
+
+        /* Map kernel region (>= KERNEL_VIRTUAL_BASE) as read‑only for user */
+        for (int i = 0; i < 1024; i++) {
+            uint32_t vaddr = i * 0x400000;
+            if (vaddr >= KERNEL_VIRTUAL_BASE) {
+                /* Copy kernel identity entry but clear the User bit */
+                proc->page_dir[i] = first_page_table[i] & ~0x4;   /* remove User flag */
+            }
+            /* Low region (< KERNEL_VIRTUAL_BASE) left as Not Present for now */
+        }
+
+        /* Map the user region (first 4 MB) as present+writable+user */
+        for (int i = 0; i < (4*1024*1024)/0x400000; i++) {   /* i = 0..1023 for 4 MB */
+            proc->page_dir[i] = (i * 0x400000) | 0x7;         /* P=1, W=1, U=1 */
+        }
+
+        /* Map VGA buffer (0x000B8000) as read‑only user */
+        uint32_t vga_dir_idx = 0x000B8000 / 0x400000;        /* = 0 */
+        uint32_t vga_tbl_idx = (0x000B8000 % 0x400000) / 0x1000; /* = 0xB8 */
+        proc->page_dir[vga_dir_idx] = ((uint32_t)&first_page_table) | 0x3;
+        first_page_table[vga_tbl_idx] = 0x000B8000 | 0x3;      /* Present + RW */
+
+        /* Map syscall entry point (0x00000080) as read‑only user */
+        uint32_t sys_dir_idx = 0x00000080 / 0x400000;        /* = 0 */
+        uint32_t sys_tbl_idx = (0x00000080 % 0x400000) / 0x1000; /* = 0 */
+        proc->page_dir[sys_dir_idx] = ((uint32_t)&first_page_table) | 0x3;
+        first_page_table[sys_tbl_idx] = 0x00000080 | 0x3;
     }
+
+    /* Copy user program into the user region (virtual address 0x0) */
+    if (USERPROG_IMAGE_SIZE <= 4*1024*1024) {
+        memcpy((void *)0x0, USERPROG_IMAGE, USERPROG_IMAGE_SIZE);
+        proc->eip = (uint32_t)0x0;   /* entry point at start of user region */
+    } else {
+        /* Binary too large for user region – fallback to kernel entry point */
+        proc->eip = (uint32_t)entry_point;
+    }
+
     /* Mark this process as user if it’s the dedicated userprog_run path (Phase A/B) */
     if (entry_point == userprog_run) {
         proc->mode = PROC_MODE_USER;

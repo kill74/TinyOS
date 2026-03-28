@@ -36,6 +36,7 @@
  * and of each directory entry's page-table address field. */
 uint32_t page_directory[1024] __attribute__((aligned(4096)));
 uint32_t first_page_table[1024] __attribute__((aligned(4096)));
+uint32_t kernel_page_table[1024] __attribute__((aligned(4096)));
 
 extern void load_page_directory(uint32_t *dir);
 extern void enable_paging(void);
@@ -52,13 +53,21 @@ void init_paging(void)
         page_directory[i] = 0x00000002;
     }
 
-    /* ── Step 2: fill the first page table (identity map 0 – 4 MB) ──────── */
-    /* Each page table entry points to one 4 KB physical page.
-     * `i * 0x1000` is the physical address of the i-th page (page frame i).
-     * Flags: Present (1) | Writable (2) = 0x3 */
+    /* ── Step 2: build a kernel-only identity page table for >= KERNEL_VIRTUAL_BASE */
+    /* We'll use first_page_table for kernel region mapping */
     for (uint32_t i = 0; i < 1024; i++)
     {
-        first_page_table[i] = (i * 0x1000) | 0x3;
+        uint32_t phys_addr = i * 0x400000;   /* each entry maps 4 MB */
+        if (phys_addr >= KERNEL_VIRTUAL_BASE)
+        {
+            /* Map kernel region as present+writable (no user) */
+            first_page_table[i] = phys_addr | 0x3;
+        }
+        else
+        {
+            /* Leave low region not present – will be filled in proc_create */
+            first_page_table[i] = 0x00000002;
+        }
     }
 
     /* ── Step 3: point directory entry 0 at our page table ───────────────── */
@@ -70,5 +79,5 @@ void init_paging(void)
     /* ── Step 4: load CR3 and turn on the PG bit in CR0 ─────────────────── */
     load_page_directory(page_directory);
     enable_paging();
-    LOG_INFO("Paging initialized (first 4 MB identity-mapped)");
+    LOG_INFO("Paging initialized (kernel region mapped, user region unmapped)");
 }
