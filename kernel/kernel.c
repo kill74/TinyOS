@@ -19,6 +19,19 @@
 #include "../include/log.h"
 #include "../include/process.h"
 #include "../include/syscall.h"
+#include "../net/rtl8139.h"
+#include "../net/ethernet.h"
+#include "../net/arp.h"
+#include "../net/ip.h"
+#include "../net/tcp.h"
+#include "../net/udp.h"
+#include "../net/socket.h"
+#include "../net/packet.h"
+#include "../gui/graphics.h"
+#include "../gui/mouse.h"
+#include "../gui/gui.h"
+#include "../fs/fs.h"
+#include "../tests/tests.h"
 #include <stdint.h>
 
 /* The kernel's bump allocator will own memory from 2 MB to 4 MB.
@@ -55,6 +68,26 @@ void process1_task(void);
 void process2_task(void);
 void shell_task(void);
 void userprog_run(void);
+
+/* Network stack initialisation */
+static void net_init(void)
+{
+    packet_init();
+    if (rtl8139_init() == 0) {
+        ethernet_init(*rtl8139_get_mac());
+        arp_init();
+        ip_set_config(
+            ip_from_bytes(10, 0, 2, 15),   /* 10.0.2.15 */
+            ip_from_bytes(255, 255, 255, 0),
+            ip_from_bytes(10, 0, 2, 2)      /* 10.0.2.2  */
+        );
+        tcp_init();
+        udp_init();
+        socket_init();
+        arp_insert(ip_from_bytes(10, 0, 2, 2),
+                   (eth_addr_t){ { 0x52, 0x55, 0x0A, 0x00, 0x02, 0x02 } });
+    }
+}
 
 /* Simple string length function */
 static size_t strlen(const char *str)
@@ -124,6 +157,18 @@ void kernel_main(void)
     init_processing();
     print_ok("Process manager initialized");
 
+    /* ── 10. Networking ──────────────────────────────────────────────────  */
+    net_init();
+    print_ok("Network stack initialized (RTL8139 + TCP/IP + sockets)");
+
+    /* ── 11. Filesystem ──────────────────────────────────────────────────  */
+    fs_init();
+    print_ok("TinyFS mounted (512 blocks, 64 inodes, 2 MB)");
+
+    /* ── 12. Run test suite ──────────────────────────────────────────────  */
+    run_all_tests();
+    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
+
     /* Register syscall handler */
     isr_register_handler(0x80, syscall_handler);
     LOG_INFO("Syscall handler registered");
@@ -164,28 +209,18 @@ void kernel_main(void)
 
     print_separator();
 
-    /* ── 10. Enable hardware interrupts ───────────────────────────────────  */
+    /* ── 12. Enable hardware interrupts ───────────────────────────────────  */
     extern void interrupts_enable(void);
     interrupts_enable();
 
-    vga_set_color(VGA_YELLOW, VGA_BLACK);
-    vga_puts("\n  All subsystems online. Interrupts enabled.\n");
-    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
-    vga_puts("  Type on your keyboard — characters will echo here.\n");
-    vga_puts("  Timer ticks are running silently in the background.\n\n");
+    /* ── 13. Launch graphical desktop ─────────────────────────────────────  */
+    /* Switch from text mode to VGA Mode 13h (320x200, 256 colours) */
+    gfx_init();
+    mouse_init();
+    gui_init();
 
-    vga_set_color(VGA_WHITE, VGA_BLACK);
-    vga_puts("  > ");
-    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
-
-    /* ── Idle loop ────────────────────────────────────────────────────────  */
-    /* `hlt` puts the CPU to sleep until the next interrupt fires.
-     * This is far better than a busy-wait: it saves power and lets the
-     * timer/keyboard handlers run cleanly. */
-    while (1)
-    {
-        __asm__ __volatile__("hlt");
-    }
+    /* Enter the desktop loop (never returns) */
+    gui_run();
 }
 
 /* Simple test processes */

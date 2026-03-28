@@ -90,6 +90,41 @@ io_wait:
     out  %al, $0x80
     ret
 
+/* outw(uint16_t port, uint16_t value)
+ * Write one word (16 bits) to an I/O port. */
+.global outw
+outw:
+    mov  4(%esp), %edx             /* port */
+    mov  8(%esp), %eax             /* value */
+    out  %ax, %dx
+    ret
+
+/* inw(uint16_t port) -> uint16_t
+ * Read one word (16 bits) from an I/O port. */
+.global inw
+inw:
+    mov  4(%esp), %edx             /* port */
+    xor  %eax, %eax
+    in   %dx, %ax
+    ret
+
+/* outl(uint16_t port, uint32_t value)
+ * Write one dword (32 bits) to an I/O port. */
+.global outl
+outl:
+    mov  4(%esp), %edx             /* port */
+    mov  8(%esp), %eax             /* value */
+    out  %eax, %dx
+    ret
+
+/* inl(uint16_t port) -> uint32_t
+ * Read one dword (32 bits) from an I/O port. */
+.global inl
+inl:
+    mov  4(%esp), %edx             /* port */
+    in   %dx, %eax
+    ret
+
 /* ── Interrupt control ────────────────────────────────────────────────────── */
 
 .global interrupts_enable

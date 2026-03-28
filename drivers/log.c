@@ -1,40 +1,14 @@
 /* log.c — Simple kernel logging facility implementation */
 
-/* Use include path relative to this file to avoid path resolution issues */
 #include "../include/log.h"
+#include "../include/vga.h"
 #include <stdint.h>
 #include <stdarg.h>
-
-/* Minimal internal helpers to format integers for log_printf */
-static int int_to_dec(char *out, int value) {
-    char tmp[12]; int n = 0; int v = value; int neg = 0;
-    if (v == 0) { out[0] = '0'; return 1; }
-    if (v < 0) { neg = 1; v = -v; }
-    while (v) { tmp[n++] = '0' + (v % 10); v /= 10; }
-    int pos = 0; if (neg) out[pos++] = '-';
-    for (int i = n-1; i >= 0; i--) out[pos++] = tmp[i];
-    return pos;
-}
-static int uint_to_dec(char *out, unsigned int value) {
-    char tmp[12]; int n = 0; if (value == 0) { out[0] = '0'; return 1; }
-    while (value) { tmp[n++] = '0' + (value % 10); value /= 10; }
-    int pos = 0; for (int i = n-1; i >= 0; i--) out[pos++] = tmp[i];
-    return pos;
-}
-static int uint_to_hex(char *out, unsigned int value) {
-    char tmp[9]; int n = 0; if (value == 0) { out[0] = '0'; return 1; }
-    const char *hexd = "0123456789abcdef";
-    while (value) { tmp[n++] = hexd[value & 0xF]; value >>= 4; }
-    int pos = 0; for (int i = n-1; i >= 0; i--) out[pos++] = tmp[i];
-    return pos;
-}
-
 
 /* Global log level - defaults to INFO */
 log_level_t current_log_level = LOG_LEVEL_INFO;
 
 void log_init(void) {
-    /* Log system initialized at INFO level by default */
     LOG_INFO("Logging system initialized");
 }
 
@@ -43,8 +17,86 @@ void log_set_level(log_level_t level) {
     LOG_INFO("Log level set to %d", level);
 }
 
-/* Optional: provide a no-op implementation for log_printf to keep ABI stable
- * in environments where the full formatting engine isn't wired yet. */
 void log_printf(log_level_t level, const char *fmt, ...) {
-    (void)level; (void)fmt; va_list ap; va_start(ap, fmt); va_end(ap);
+    if (level > current_log_level) {
+        return;
+    }
+
+    /* Pick a colour prefix based on level */
+    vga_color_t fg = VGA_LIGHT_GREY;
+    switch (level) {
+        case LOG_LEVEL_ERROR: fg = VGA_LIGHT_RED;    break;
+        case LOG_LEVEL_WARN:  fg = VGA_YELLOW;       break;
+        case LOG_LEVEL_INFO:  fg = VGA_LIGHT_CYAN;   break;
+        case LOG_LEVEL_DEBUG: fg = VGA_LIGHT_GREEN;  break;
+        default: break;
+    }
+    vga_set_color(fg, VGA_BLACK);
+
+    /* Forward the format string and args to vga_printf */
+    va_list ap;
+    va_start(ap, fmt);
+    /* vga_printf is already variadic — we can't call it directly with a
+     * va_list, so we do a minimal inline formatter here. */
+    for (; *fmt; fmt++) {
+        if (*fmt != '%') {
+            vga_putchar(*fmt);
+            continue;
+        }
+        fmt++;
+        switch (*fmt) {
+            case 's': {
+                const char *s = va_arg(ap, const char *);
+                vga_puts(s ? s : "(null)");
+                break;
+            }
+            case 'd': {
+                int n = va_arg(ap, int);
+                unsigned int u;
+                if (n < 0) {
+                    vga_putchar('-');
+                    u = (unsigned int)(-(n + 1)) + 1u;
+                } else {
+                    u = (unsigned int)n;
+                }
+                char buf[12]; int i = 0;
+                if (u == 0) { vga_putchar('0'); break; }
+                while (u > 0) { buf[i++] = (char)('0' + (u % 10)); u /= 10; }
+                while (i--) { vga_putchar(buf[i]); }
+                break;
+            }
+            case 'u': {
+                unsigned int u = va_arg(ap, unsigned int);
+                char buf[12]; int i = 0;
+                if (u == 0) { vga_putchar('0'); break; }
+                while (u > 0) { buf[i++] = (char)('0' + (u % 10)); u /= 10; }
+                while (i--) { vga_putchar(buf[i]); }
+                break;
+            }
+            case 'x': {
+                unsigned int n = va_arg(ap, unsigned int);
+                char buf[10]; int i = 0;
+                if (n == 0) { vga_puts("0x0"); break; }
+                vga_puts("0x");
+                while (n > 0) {
+                    int d = n & 0xF;
+                    buf[i++] = (d < 10) ? '0' + d : 'a' + d - 10;
+                    n >>= 4;
+                }
+                while (i--) { vga_putchar(buf[i]); }
+                break;
+            }
+            case '%':
+                vga_putchar('%');
+                break;
+            default:
+                vga_putchar('%');
+                vga_putchar(*fmt);
+                break;
+        }
+    }
+    va_end(ap);
+
+    /* Reset to default colour */
+    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
 }

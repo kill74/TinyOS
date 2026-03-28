@@ -13,6 +13,10 @@ static int32_t sys_exit_impl(int32_t status);
 static int32_t sys_getpid_impl(void);
 static void sys_yield_impl(void);
 static int32_t sys_sleep_impl(uint32_t ticks);
+static int32_t sys_fork_impl(void);
+static int32_t sys_exec_impl(void (*entry_point)(void));
+static int32_t sys_sbrk_impl(int32_t increment);
+static int32_t sys_wait_impl(int32_t *status_ptr);
 
 /* Syscall handler */
 void syscall_handler(registers_t *regs)
@@ -59,6 +63,22 @@ void syscall_handler(registers_t *regs)
         ret = sys_sleep_impl((uint32_t)regs->ebx);
         break;
 
+    case SYS_FORK:
+        ret = sys_fork_impl();
+        break;
+
+    case SYS_EXEC:
+        ret = sys_exec_impl((void (*)(void))regs->ebx);
+        break;
+
+    case SYS_SBRK:
+        ret = sys_sbrk_impl((int32_t)regs->ebx);
+        break;
+
+    case SYS_WAIT:
+        ret = sys_wait_impl((int32_t *)regs->ebx);
+        break;
+
     default:
         /* Unknown syscall */
         LOG_ERROR("Unknown syscall: %d", syscall_num);
@@ -93,16 +113,14 @@ static int32_t sys_exit_impl(int32_t status)
     LOG_INFO("Process %d exiting with status %d",
              current_proc ? current_proc->pid : -1, status);
 
-    /* Mark process as unused */
     if (current_proc != NULL)
     {
-        current_proc->state = PROC_UNUSED;
+        current_proc->exit_status = status;
+        current_proc->state = PROC_ZOMBIE;
     }
 
-    /* Schedule next process */
     schedule();
 
-    /* Should not reach here */
     return 0;
 }
 
@@ -124,4 +142,24 @@ static int32_t sys_sleep_impl(uint32_t ticks)
 {
     proc_sleep_ticks(ticks);
     return 0;
+}
+
+static int32_t sys_fork_impl(void)
+{
+    return proc_fork();
+}
+
+static int32_t sys_exec_impl(void (*entry_point)(void))
+{
+    return proc_exec(entry_point);
+}
+
+static int32_t sys_sbrk_impl(int32_t increment)
+{
+    return proc_sbrk(increment);
+}
+
+static int32_t sys_wait_impl(int32_t *status_ptr)
+{
+    return proc_wait(status_ptr);
 }

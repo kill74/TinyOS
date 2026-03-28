@@ -11,7 +11,7 @@ ASM_SOURCES = \
 	boot.S \
 	helpers.S \
 	isr.S \
-	process.S
+	process_asm.S
 
 C_SOURCES = \
 	drivers/gdt.c \
@@ -23,9 +23,26 @@ C_SOURCES = \
 	drivers/paging.c \
 	drivers/timer.c \
 	drivers/vga.c \
+	gui/graphics.c \
+	gui/mouse.c \
+	gui/font.c \
+	gui/gui.c \
+	fs/fs.c \
+	libc/string.c \
+	libc/stdlib.c \
+	libc/stdio.c \
+	tests/tests.c \
 	kernel/kernel.c \
 	kernel/syscall.c \
 	kernel/switch_to_user.c \
+	net/packet.c \
+	net/rtl8139.c \
+	net/ethernet.c \
+	net/arp.c \
+	net/ip.c \
+	net/tcp.c \
+	net/udp.c \
+	net/socket.c \
 	shell.c \
 	process.c \
 	userprog_run.c \

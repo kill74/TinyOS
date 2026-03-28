@@ -2,11 +2,13 @@
 #pragma once
 #include <stdint.h>
 
-#define MAX_PROCESSES 4
+#define MAX_PROCESSES 16
 #define PROC_MODE_KERNEL 0
 #define PROC_MODE_USER 1
 #define KSTACK_SIZE 4096
-#define USR_STACK_SIZE 4096
+#define USR_STACK_SIZE 8192
+#define USER_HEAP_START 0x100000
+#define USER_HEAP_END   0x400000
 
 /* Process states */
 typedef enum
@@ -15,7 +17,9 @@ typedef enum
     PROC_RUNNING,
     PROC_READY,
     PROC_BLOCKED,
-    PROC_SLEEPING
+    PROC_SLEEPING,
+    PROC_ZOMBIE,
+    PROC_WAITING
 } proc_state_t;
 
 /* Process Control Block */
@@ -41,12 +45,16 @@ typedef struct
 
     /* Process info */
     int pid;
+    int parent_pid;
     proc_state_t state;
-    uint32_t wake_tick;     /* Tick when sleeping process becomes READY */
-    uint8_t mode;             /* 0 = kernel, 1 = user (Phase C) */
-    uint32_t kstack_top;    /* Kernel stack top */
-    uint32_t usr_stack_top; /* User stack top */
-    uint32_t *page_dir;     /* Page directory (cr3 value) */
+    int exit_status;
+    uint32_t wake_tick;
+    uint8_t mode;
+    uint32_t kstack_top;
+    uint32_t usr_stack_top;
+    uint32_t usr_stack_base;
+    uint32_t *page_dir;
+    uint32_t heap_end;
 
     /* Kernel stack (grows down from high addresses) */
     uint8_t kstack[KSTACK_SIZE];
@@ -66,3 +74,15 @@ extern int next_pid;
 
 /* Kill a process by PID (best-effort) */
 int proc_kill(int pid);
+
+/* Fork - create a copy of the current process */
+int proc_fork(void);
+
+/* Exec - replace current process with new program */
+int proc_exec(void (*entry_point)(void));
+
+/* Sbrk - grow/shrink user heap */
+int proc_sbrk(int32_t increment);
+
+/* Wait - wait for child to exit */
+int proc_wait(int *status_ptr);

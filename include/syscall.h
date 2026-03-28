@@ -11,6 +11,10 @@
 #define SYS_SLEEP 5
 #define SYS_SETLOG 7
 #define SYS_READ 6
+#define SYS_FORK 8
+#define SYS_EXEC 9
+#define SYS_SBRK 10
+#define SYS_WAIT 11
 
 /* Syscall handler prototype */
 void syscall_handler(registers_t *regs);
@@ -79,6 +83,50 @@ static inline int32_t sys_setlog(int32_t level)
         "int $0x80"
         : "=a"(ret)
         : "0"(SYS_SETLOG), "b"(level)
+        : "memory");
+    return ret;
+}
+
+static inline int32_t sys_fork(void)
+{
+    int32_t ret;
+    __asm__ __volatile__(
+        "int $0x80"
+        : "=a"(ret)
+        : "0"(SYS_FORK)
+        : "memory");
+    return ret;
+}
+
+static inline int32_t sys_exec(void (*entry_point)(void))
+{
+    int32_t ret;
+    __asm__ __volatile__(
+        "int $0x80"
+        : "=a"(ret)
+        : "0"(SYS_EXEC), "b"(entry_point)
+        : "memory");
+    return ret;
+}
+
+static inline int32_t sys_sbrk(int32_t increment)
+{
+    int32_t ret;
+    __asm__ __volatile__(
+        "int $0x80"
+        : "=a"(ret)
+        : "0"(SYS_SBRK), "b"(increment)
+        : "memory");
+    return ret;
+}
+
+static inline int32_t sys_wait(int32_t *status_ptr)
+{
+    int32_t ret;
+    __asm__ __volatile__(
+        "int $0x80"
+        : "=a"(ret)
+        : "0"(SYS_WAIT), "b"(status_ptr)
         : "memory");
     return ret;
 }

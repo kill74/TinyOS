@@ -6,7 +6,8 @@
 #include "kmalloc.h"
 #include "timer.h"
 #include <stdint.h>
-#include <string.h>
+#include <stddef.h>
+
 extern uint32_t page_directory[1024];
 extern void userprog_run(void);
 
@@ -28,8 +29,11 @@ void init_processing(void)
     {
         proc_table[i].state = PROC_UNUSED;
         proc_table[i].pid = -1;
+        proc_table[i].parent_pid = -1;
+        proc_table[i].exit_status = 0;
         proc_table[i].wake_tick = 0;
         proc_table[i].mode = PROC_MODE_KERNEL;
+        proc_table[i].heap_end = USER_HEAP_START;
     }
 
     LOG_INFO("Process management initialized");
@@ -84,8 +88,6 @@ int proc_create(void (*entry_point)(void), int pid)
     /* Set up per-process page directory */
     extern uint32_t page_directory[1024];
     extern uint32_t first_page_table[];
-    extern const uint8_t USERPROG_IMAGE[];
-    extern const size_t  USERPROG_IMAGE_SIZE;
     proc->page_dir = (uint32_t *)kmalloc(1024 * sizeof(uint32_t));
     if (!proc->page_dir) {
         /* Fallback to kernel identity map if allocation fails */
@@ -106,7 +108,7 @@ int proc_create(void (*entry_point)(void), int pid)
         }
 
         /* Map the user region (first 4 MB) as present+writable+user */
-        for (int i = 0; i < (4*1024*1024)/0x400000; i++) {   /* i = 0..1023 for 4 MB */
+        for (int i = 0; i < (4*1024*1024)/0x400000; i++) {
             proc->page_dir[i] = (i * 0x400000) | 0x7;         /* P=1, W=1, U=1 */
         }
 
@@ -123,14 +125,8 @@ int proc_create(void (*entry_point)(void), int pid)
         first_page_table[sys_tbl_idx] = 0x00000080 | 0x3;
     }
 
-    /* Copy user program into the user region (virtual address 0x0) */
-    if (USERPROG_IMAGE_SIZE <= 4*1024*1024) {
-        memcpy((void *)0x0, USERPROG_IMAGE, USERPROG_IMAGE_SIZE);
-        proc->eip = (uint32_t)0x0;   /* entry point at start of user region */
-    } else {
-        /* Binary too large for user region – fallback to kernel entry point */
-        proc->eip = (uint32_t)entry_point;
-    }
+    /* Use entry point directly — user program image loading is deferred to ELF loader */
+    proc->eip = (uint32_t)entry_point;
 
     /* Mark this process as user if it’s the dedicated userprog_run path (Phase A/B) */
     if (entry_point == userprog_run) {
@@ -308,3 +304,165 @@ void proc_tick(uint32_t current_tick)
 
 /* Phase C: switch_to_user is implemented in kernel/switch_to_user.c; this file
  * contains the scheduling glue and paging switch only. */
+
+/* Forward declaration for fork context switch */
+extern void context_switch_fork(uint32_t *from_esp, uint32_t *to_esp, uint32_t *from_ebp);
+
+/* Fork - create a copy of the current process */
+int proc_fork(void)
+{
+    if (current_proc == NULL) {
+        return -1;
+    }
+
+    int slot = -1;
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        if (proc_table[i].state == PROC_UNUSED) {
+            slot = i;
+            break;
+        }
+    }
+
+    if (slot == -1) {
+        LOG_WARN("No free process slots for fork");
+        return -1;
+    }
+
+    pcb_t *parent = current_proc;
+    pcb_t *child = &proc_table[slot];
+
+    child->pid = next_pid++;
+    child->parent_pid = parent->pid;
+    child->mode = parent->mode;
+    child->state = PROC_READY;
+    child->exit_status = 0;
+    child->wake_tick = 0;
+    child->heap_end = parent->heap_end;
+
+    child->usr_stack_base = parent->usr_stack_base;
+    child->usr_stack_top = parent->usr_stack_top;
+    child->page_dir = parent->page_dir;
+
+    child->kstack_top = (uint32_t)&child->kstack[KSTACK_SIZE];
+
+    uint32_t *parent_stack = (uint32_t *)parent->kstack_top;
+    uint32_t *child_stack = (uint32_t *)child->kstack_top;
+
+    size_t stack_words = (KSTACK_SIZE / sizeof(uint32_t)) - ((parent_stack - (uint32_t *)parent->kstack) & 0x3F);
+    if (stack_words > KSTACK_SIZE / sizeof(uint32_t)) {
+        stack_words = KSTACK_SIZE / sizeof(uint32_t);
+    }
+
+    for (size_t i = 0; i < stack_words; i++) {
+        *--child_stack = *parent_stack++;
+    }
+
+    child->kstack_top = (uint32_t)child_stack;
+
+    extern uint32_t saved_ebp;
+    child->ebp = saved_ebp;
+
+    child->eip = parent->eip;
+    child->eflags = parent->eflags;
+    child->eax = 0;
+
+    LOG_INFO("Fork: parent=%d, child=%d", parent->pid, child->pid);
+    return child->pid;
+}
+
+/* Exec - replace current process with new program */
+int proc_exec(void (*entry_point)(void))
+{
+    if (current_proc == NULL || entry_point == NULL) {
+        return -1;
+    }
+
+    current_proc->eip = (uint32_t)entry_point;
+    current_proc->eax = 0;
+    current_proc->ebx = 0;
+    current_proc->ecx = 0;
+    current_proc->edx = 0;
+    current_proc->esi = 0;
+    current_proc->edi = 0;
+    current_proc->ebp = 0;
+
+    current_proc->usr_stack_top = current_proc->usr_stack_base + USR_STACK_SIZE;
+    current_proc->heap_end = USER_HEAP_START;
+
+    LOG_INFO("Exec: process %d executing at 0x%x", current_proc->pid, (uint32_t)entry_point);
+    return 0;
+}
+
+/* Sbrk - grow/shrink user heap */
+int proc_sbrk(int32_t increment)
+{
+    if (current_proc == NULL) {
+        return -1;
+    }
+
+    uint32_t old_heap_end = current_proc->heap_end;
+    uint32_t new_heap_end = old_heap_end + increment;
+
+    if (new_heap_end < USER_HEAP_START) {
+        return -1;
+    }
+    if (new_heap_end > USER_HEAP_END) {
+        return -1;
+    }
+
+    current_proc->heap_end = new_heap_end;
+    return old_heap_end;
+}
+
+/* Find zombie child of a parent process */
+static pcb_t* find_zombie_child(int parent_pid)
+{
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        if (proc_table[i].state == PROC_ZOMBIE && 
+            proc_table[i].parent_pid == parent_pid) {
+            return &proc_table[i];
+        }
+    }
+    return NULL;
+}
+
+/* Wait - wait for child to exit */
+int proc_wait(int *status_ptr)
+{
+    if (current_proc == NULL) {
+        return -1;
+    }
+
+    while (1) {
+        pcb_t *zombie = find_zombie_child(current_proc->pid);
+        if (zombie != NULL) {
+            int pid = zombie->pid;
+            int status = zombie->exit_status;
+            zombie->state = PROC_UNUSED;
+            zombie->pid = -1;
+            if (status_ptr != NULL) {
+                *status_ptr = status;
+            }
+            LOG_INFO("Wait: reaped child %d, status=%d", pid, status);
+            return pid;
+        }
+
+        for (int i = 0; i < MAX_PROCESSES; i++) {
+            if (proc_table[i].parent_pid == current_proc->pid &&
+                proc_table[i].state != PROC_UNUSED &&
+                proc_table[i].state != PROC_ZOMBIE) {
+                current_proc->state = PROC_WAITING;
+                schedule();
+                break;
+            }
+        }
+
+        if (current_proc->state == PROC_WAITING) {
+            continue;
+        }
+
+        break;
+    }
+
+    return -1;
+}

@@ -14,6 +14,10 @@
 #include "../include/vga.h"
 #include "../include/log.h"
 #include "../include/process.h"
+#include "../net/rtl8139.h"
+#include "../net/tcp.h"
+#include "../net/arp.h"
+#include "../gui/gui.h"
 #include <stdint.h>
 
 /* ── PIT I/O ports ────────────────────────────────────────────────────────── */
@@ -33,9 +37,22 @@ static volatile uint32_t tick_count = 0;
 /* ── IRQ0 handler ─────────────────────────────────────────────────────────── */
 static void timer_callback(registers_t *regs)
 {
-    (void)regs; /* unused — suppress compiler warning */
+    (void)regs;
     tick_count++;
     proc_tick(tick_count);
+
+    /* Network: poll NIC for received packets */
+    rtl8139_poll();
+
+    /* Network: TCP retransmissions and timers */
+    tcp_tick();
+
+    /* Network: age ARP entries (every ~1 second) */
+    if ((tick_count % 100) == 0)
+        arp_tick();
+
+    /* GUI: update clock and trigger redraw */
+    gui_tick();
 }
 
 /* ── Public API ───────────────────────────────────────────────────────────── */
