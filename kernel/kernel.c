@@ -50,9 +50,11 @@ static void print_ok(const char *label)
 
 /* ── Kernel entry ─────────────────────────────────────────────────────────── */
 
-/* Forward declarations for test processes */
+/* Forward declarations for test processes, the developer shell, and a userprog runner */
 void process1_task(void);
 void process2_task(void);
+void shell_task(void);
+void userprog_run(void);
 
 /* Simple string length function */
 static size_t strlen(const char *str)
@@ -118,6 +120,10 @@ void kernel_main(void)
     /* Create test processes */
     proc_create(process1_task, 1);
     proc_create(process2_task, 2);
+    /* Start interactive shell for developers */
+    proc_create(shell_task, 3);
+    /* Start tiny user-program runner (A) */
+    proc_create(userprog_run, 4);
     LOG_INFO("Created test processes");
 
     /* ── Demo: allocate, use, then FREE — no leaks ───────────────────────  */

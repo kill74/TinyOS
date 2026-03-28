@@ -46,6 +46,12 @@ void syscall_handler(registers_t *regs)
         ret = 0;
         break;
 
+    case SYS_SETLOG:
+        /* Set kernel log level from user space */
+        log_set_level((log_level_t)regs->ebx);
+        ret = 0;
+        break;
+
     case SYS_SLEEP:
         /* sys_sleep(uint32_t ticks) */
         /* Parameter: ebx=ticks */

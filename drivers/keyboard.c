@@ -19,6 +19,12 @@
 
 #define KB_DATA_PORT 0x60
 
+/* Simple ring buffer for keyboard input so user tasks can read characters */
+#define KB_BUFFER_SIZE 64
+static volatile char kb_buffer[KB_BUFFER_SIZE];
+static volatile uint32_t kb_head = 0; /* write index */
+static volatile uint32_t kb_tail = 0; /* read index */
+
 extern uint8_t inb(uint16_t port);
 /* irq_enable is declared in irq.h — no local extern needed */
 
@@ -109,6 +115,12 @@ static void keyboard_callback(registers_t *regs)
         {
             last_char = c;
             vga_putchar(c); /* Echo the character to the screen */
+            /* Push into ring buffer if there is space */
+            uint32_t next_head = (kb_head + 1) % KB_BUFFER_SIZE;
+            if (next_head != kb_tail) {
+                kb_buffer[kb_head] = c;
+                kb_head = next_head;
+            }
         }
     }
 }
@@ -125,4 +137,18 @@ void init_keyboard(void)
 char keyboard_last_char(void)
 {
     return last_char;
+}
+
+/* Keyboard buffer helpers (for user-space/read). */
+int keyboard_has_char(void) {
+    return kb_head != kb_tail;
+}
+
+char keyboard_read_char(void) {
+    if (kb_tail == kb_head) {
+        return 0; /* no data */
+    }
+    char c = kb_buffer[kb_tail];
+    kb_tail = (kb_tail + 1) % KB_BUFFER_SIZE;
+    return c;
 }

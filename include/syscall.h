@@ -9,6 +9,8 @@
 #define SYS_GETPID 3
 #define SYS_YIELD 4
 #define SYS_SLEEP 5
+#define SYS_SETLOG 7
+#define SYS_READ 6
 
 /* Syscall handler prototype */
 void syscall_handler(registers_t *regs);
@@ -65,6 +67,18 @@ static inline int32_t sys_sleep(uint32_t ticks)
         "int $0x80"
         : "=a"(ret)
         : "0"(SYS_SLEEP), "b"(ticks)
+        : "memory");
+    return ret;
+}
+
+/* Set kernel log level (development tool) */
+static inline int32_t sys_setlog(int32_t level)
+{
+    int32_t ret;
+    __asm__ __volatile__(
+        "int $0x80"
+        : "=a"(ret)
+        : "0"(SYS_SETLOG), "b"(level)
         : "memory");
     return ret;
 }

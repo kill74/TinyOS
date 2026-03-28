@@ -25,7 +25,11 @@ C_SOURCES = \
 	drivers/vga.c \
 	kernel/kernel.c \
 	kernel/syscall.c \
-	process.c
+	kernel/switch_to_user.c \
+	shell.c \
+	process.c \
+	userprog_run.c \
+	userprog_blob.c
 
 ASM_OBJECTS = $(ASM_SOURCES:%.S=$(BUILD_DIR)/%.o)
 C_OBJECTS = $(C_SOURCES:%.c=$(BUILD_DIR)/%.o)

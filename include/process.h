@@ -3,6 +3,8 @@
 #include <stdint.h>
 
 #define MAX_PROCESSES 4
+#define PROC_MODE_KERNEL 0
+#define PROC_MODE_USER 1
 #define KSTACK_SIZE 4096
 #define USR_STACK_SIZE 4096
 
@@ -41,6 +43,7 @@ typedef struct
     int pid;
     proc_state_t state;
     uint32_t wake_tick;     /* Tick when sleeping process becomes READY */
+    uint8_t mode;             /* 0 = kernel, 1 = user (Phase C) */
     uint32_t kstack_top;    /* Kernel stack top */
     uint32_t usr_stack_top; /* User stack top */
     uint32_t *page_dir;     /* Page directory (cr3 value) */
@@ -60,3 +63,6 @@ void proc_tick(uint32_t current_tick);
 extern pcb_t *current_proc;
 extern pcb_t proc_table[MAX_PROCESSES];
 extern int next_pid;
+
+/* Kill a process by PID (best-effort) */
+int proc_kill(int pid);

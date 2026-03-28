@@ -1,11 +1,14 @@
 /* process.c — Process management implementation */
 
 #include "process.h"
-#include "log.h"
 #include "paging.h"
+#include "log.h"
 #include "kmalloc.h"
 #include "timer.h"
 #include <stdint.h>
+#include <string.h>
+extern uint32_t page_directory[1024];
+extern void userprog_run(void);
 
 /* Global process table */
 pcb_t proc_table[MAX_PROCESSES];
@@ -26,6 +29,7 @@ void init_processing(void)
         proc_table[i].state = PROC_UNUSED;
         proc_table[i].pid = -1;
         proc_table[i].wake_tick = 0;
+        proc_table[i].mode = PROC_MODE_KERNEL;
     }
 
     LOG_INFO("Process management initialized");
@@ -77,9 +81,22 @@ int proc_create(void (*entry_point)(void), int pid)
         return -1;
     }
 
-    /* Set up page directory (inherit from kernel for now) */
+    /* Set up per-process page directory (inherit from kernel for now) */
     extern uint32_t page_directory[1024];
-    proc->page_dir = page_directory;
+    proc->page_dir = (uint32_t *)kmalloc(1024 * sizeof(uint32_t));
+    if (proc->page_dir != NULL) {
+        for (int i = 0; i < 1024; i++) {
+            proc->page_dir[i] = page_directory[i];
+        }
+    } else {
+        proc->page_dir = page_directory; /* fallback if kmalloc fails */
+    }
+    /* Mark this process as user if it’s the dedicated userprog_run path (Phase A/B) */
+    if (entry_point == userprog_run) {
+        proc->mode = PROC_MODE_USER;
+    } else {
+        proc->mode = PROC_MODE_KERNEL;
+    }
 
     /* Initialize CPU context on kernel stack */
     uint32_t *stack_ptr = (uint32_t *)proc->kstack_top;
@@ -112,6 +129,20 @@ int proc_create(void (*entry_point)(void), int pid)
 
     LOG_INFO("Process %d created (state: READY)", proc->pid);
     return proc->pid;
+}
+
+/* Kill a process by PID - best-effort cleanup */
+int proc_kill(int pid)
+{
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        pcb_t *p = &proc_table[i];
+        if (p->state != PROC_UNUSED && p->pid == pid) {
+            p->state = PROC_UNUSED;
+            LOG_INFO("Process %d killed", pid);
+            return 0;
+        }
+    }
+    return -1;
 }
 
 /* Scheduler - simple round-robin */
@@ -168,6 +199,16 @@ void schedule(void)
     }
     current_proc = next_proc;
     current_proc->state = PROC_RUNNING;
+    /* Switch to the new process's page directory (simple per-process isolation) */
+    extern void load_page_directory(uint32_t *dir);
+    if (current_proc != NULL && current_proc->page_dir != NULL)
+    {
+        load_page_directory(current_proc->page_dir);
+    }
+    /* Phase C: skeleton hook to switch to user mode when running user processes */
+    if (current_proc != NULL && current_proc->mode == PROC_MODE_USER) {
+        switch_to_user();
+    }
 
     /* Perform context switch */
     if (prev_proc != NULL)
@@ -224,14 +265,5 @@ void proc_tick(uint32_t current_tick)
     }
 }
 
-/* Switch to user mode (simplified) */
-void switch_to_user(void)
-{
-    /* In a full implementation, this would:
-       1. Set up user segment registers
-       2. Set up user stack
-       3. Use iret to return to user mode
-     */
-    LOG_DEBUG("Switching to user mode for process %d", current_proc->pid);
-    /* Actual implementation would be in assembly */
-}
+/* Phase C: switch_to_user is implemented in kernel/switch_to_user.c; this file
+ * contains the scheduling glue and paging switch only. */
