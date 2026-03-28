@@ -5,6 +5,7 @@
 #include "../include/process.h"
 #include "../include/vga.h"
 #include <stdint.h>
+#include <stddef.h>
 
 /* Forward declarations for implementation functions */
 static int32_t sys_write_impl(int32_t fd, const void *buf, uint32_t count);
