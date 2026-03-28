@@ -8,7 +8,7 @@ TinyOS demonstrates core operating‑system concepts—bootstrapping, memory man
 
 ---
 
-## 🚀 Features
+## Features
 
 - **Fully freestanding** – no libc, no host runtime.
 - **Multiboot‑compatible** entry (`boot.S`) loads via QEMU, Bochs, or real hardware.
@@ -24,7 +24,7 @@ TinyOS demonstrates core operating‑system concepts—bootstrapping, memory man
 
 ---
 
-## 📖 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -75,7 +75,7 @@ exit        – yield the shell (returns to scheduler)
 
 ---
 
-## 🏗️ Project Layout
+## Project Layout
 
 ```
 .
@@ -113,7 +113,7 @@ exit        – yield the shell (returns to scheduler)
 
 ---
 
-## 🛣️ Roadmap
+## Roadmap
 
 | Version | Target |
 |---------|--------|
@@ -126,7 +126,7 @@ Each version is accompanied by a changelog entry and tag.
 
 ---
 
-## 🐞 Known Limitations
+## Known Limitations
 
 - The scheduler is cooperative; a CPU‑intensive user task will stall the system until it yields (by design, but preemptive tick‑based scheduling is planned).
 - Memory protection relies on paging; writes to kernel‑only addresses from user mode trigger a page fault (logged) but do not yet trigger a proper kernel panic or signal.
@@ -136,7 +136,7 @@ Each version is accompanied by a changelog entry and tag.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please follow these steps:
 
@@ -152,7 +152,7 @@ Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed guidelines, and us
 
 ---
 
-## 📄 License
+## License
 
 TinyOS is licensed under the MIT License – see the [`LICENSE`](LICENSE) file for details.
 
