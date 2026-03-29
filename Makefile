@@ -22,7 +22,11 @@ C_SOURCES = \
 	drivers/log.c \
 	drivers/paging.c \
 	drivers/timer.c \
+	drivers/tss.c \
 	drivers/vga.c \
+	drivers/elf.c \
+	drivers/panic.c \
+	drivers/rtc.c \
 	gui/graphics.c \
 	gui/mouse.c \
 	gui/font.c \

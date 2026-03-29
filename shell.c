@@ -280,13 +280,13 @@ Available commands:\n\
         } else if (str_eq(line, "kmem_check")) {
             kmalloc_check();
         } else if (str_eq(line, "start1")) {
-            proc_create(process1_task, -1);
+            proc_create(process1_task, -1, PROC_MODE_KERNEL);
         } else if (str_eq(line, "start2")) {
-            proc_create(process2_task, -1);
+            proc_create(process2_task, -1, PROC_MODE_KERNEL);
         } else if (str_eq(line, "fork")) {
-            proc_create(fork_parent_task, -1);
+            proc_create(fork_parent_task, -1, PROC_MODE_KERNEL);
         } else if (str_eq(line, "sbrk")) {
-            proc_create(sbrk_test_task, -1);
+            proc_create(sbrk_test_task, -1, PROC_MODE_KERNEL);
         } else if (str_eq(line, "ps")) {
             shell_ps();
         } else if (str_eq(line, "clear")) {

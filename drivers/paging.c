@@ -30,6 +30,7 @@
 
 #include "../include/paging.h"
 #include "../include/log.h"
+#include "../include/kmalloc.h"
 #include <stdint.h>
 
 /* Both arrays must be 4 KB-aligned — the CPU ignores the low 12 bits of CR3
@@ -40,6 +41,28 @@ uint32_t kernel_page_table[1024] __attribute__((aligned(4096)));
 
 extern void load_page_directory(uint32_t *dir);
 extern void enable_paging(void);
+
+void map_page(uint32_t virt, uint32_t phys, uint32_t flags)
+{
+    uint32_t dir_idx = virt >> 22;
+    uint32_t tbl_idx = (virt >> 12) & 0x3FF;
+
+    /* If the directory entry is not present, allocate a new page table */
+    if (!(page_directory[dir_idx] & 0x1)) {
+        uint32_t *new_table = (uint32_t *)kmalloc(4096);
+        if (!new_table) {
+            LOG_ERROR("map_page: out of memory for page table");
+            return;
+        }
+        for (int i = 0; i < 1024; i++)
+            new_table[i] = 0x00000002; /* not present */
+        page_directory[dir_idx] = ((uint32_t)new_table) | 0x7; /* P|W|U */
+    }
+
+    uint32_t *table = (uint32_t *)(page_directory[dir_idx] & ~0xFFF);
+    table[tbl_idx] = (phys & ~0xFFF) | (flags & 0xFFF);
+    __asm__ __volatile__("invlpg (%0)" : : "r"(virt) : "memory");
+}
 
 void init_paging(void)
 {

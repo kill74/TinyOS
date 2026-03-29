@@ -53,6 +53,9 @@ static void timer_callback(registers_t *regs)
 
     /* GUI: update clock and trigger redraw */
     gui_tick();
+
+    /* Preemptive scheduling: force a context switch on every tick */
+    preempt();
 }
 
 /* ── Public API ───────────────────────────────────────────────────────────── */

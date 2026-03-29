@@ -13,6 +13,7 @@
  */
 
 #include "../include/gdt.h"
+#include "../include/tss.h"
 #include "../include/log.h"
 #include <stdint.h>
 
@@ -39,7 +40,7 @@ struct gdt_ptr
 } __attribute__((packed));
 
 /* ── Module data ──────────────────────────────────────────────────────────── */
-#define GDT_ENTRIES 5
+#define GDT_ENTRIES 6
 static struct gdt_entry gdt[GDT_ENTRIES];
 static struct gdt_ptr gdtp;
 
@@ -78,6 +79,13 @@ static void gdt_set_gate(int num,
 }
 
 /* ── Public: initialise the GDT ──────────────────────────────────────────── */
+void gdt_set_base(int num, uint32_t base)
+{
+    gdt[num].base_low  = (uint16_t)(base & 0xFFFF);
+    gdt[num].base_mid  = (uint8_t)((base >> 16) & 0xFF);
+    gdt[num].base_high = (uint8_t)((base >> 24) & 0xFF);
+}
+
 void init_gdt(void)
 {
     LOG_INFO("Initializing GDT");
@@ -104,6 +112,11 @@ void init_gdt(void)
 
     /* 4: User Data — ring 3, writable */
     gdt_set_gate(4, 0, 0xFFFFFFFF, 0xF2, 0xCF);
+
+    /* 5: TSS — filled by init_tss() later; placeholder here
+     *    access 0x89 = Present, ring 0, 32-bit TSS available
+     *    granularity 0x00 = byte granularity, limit = 103 (0x67) */
+    gdt_set_gate(5, 0, 0x00000067, 0x89, 0x00);
 
     gdt_flush((uint32_t)&gdtp);
     LOG_INFO("GDT initialized with %d entries", GDT_ENTRIES);

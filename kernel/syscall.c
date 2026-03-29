@@ -4,6 +4,7 @@
 #include "../include/log.h"
 #include "../include/process.h"
 #include "../include/vga.h"
+#include "../include/elf.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -17,6 +18,7 @@ static int32_t sys_fork_impl(void);
 static int32_t sys_exec_impl(void (*entry_point)(void));
 static int32_t sys_sbrk_impl(int32_t increment);
 static int32_t sys_wait_impl(int32_t *status_ptr);
+static int32_t sys_execelf_impl(const void *data, uint32_t size);
 
 /* Syscall handler */
 void syscall_handler(registers_t *regs)
@@ -77,6 +79,10 @@ void syscall_handler(registers_t *regs)
 
     case SYS_WAIT:
         ret = sys_wait_impl((int32_t *)regs->ebx);
+        break;
+
+    case SYS_EXECELF:
+        ret = sys_execelf_impl((const void *)regs->ebx, (uint32_t)regs->ecx);
         break;
 
     default:
@@ -162,4 +168,18 @@ static int32_t sys_sbrk_impl(int32_t increment)
 static int32_t sys_wait_impl(int32_t *status_ptr)
 {
     return proc_wait(status_ptr);
+}
+
+static int32_t sys_execelf_impl(const void *data, uint32_t size)
+{
+    if (!data || size == 0)
+        return -1;
+
+    uint32_t entry = 0;
+    if (elf_load((const uint8_t *)data, size, &entry) != 0) {
+        LOG_ERROR("sys_execelf: ELF load failed");
+        return -1;
+    }
+
+    return proc_exec((void (*)(void))entry);
 }

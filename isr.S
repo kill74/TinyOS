@@ -74,6 +74,9 @@ ISR_NOERRCODE 29
 ISR_NOERRCODE 30
 ISR_NOERRCODE 31
 
+/* ── Syscall trap (vector 0x80, ring-3 accessible) ─────────────────────── */
+ISR_NOERRCODE 128
+
 /* ── Hardware IRQs (vectors 32–47, remapped from 0–15) ────────────────────── */
 IRQ  0, 32    /* Programmable Interval Timer */
 IRQ  1, 33    /* PS/2 Keyboard               */

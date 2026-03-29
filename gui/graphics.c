@@ -82,25 +82,25 @@ static void init_palette(void)
     for (int i = 0; i < 16; i++)
         set_palette_entry(i, pal16[i][0], pal16[i][1], pal16[i][2]);
 
-    /* Colours 16-31: dark UI tones */
-    set_palette_entry(16,  20,  20,  30);   /* very dark blue-grey   */
-    set_palette_entry(17,  40,  40,  60);   /* dark blue-grey        */
-    set_palette_entry(18,  60,  60,  90);   /* medium blue-grey      */
-    set_palette_entry(19,  30,  80,  30);   /* dark green            */
-    set_palette_entry(20,  80,  30,  30);   /* dark red              */
-    set_palette_entry(21, 100, 100,  50);   /* olive                 */
-    set_palette_entry(22,  50,  50, 120);   /* royal blue            */
-    set_palette_entry(23, 140,  80,  40);   /* brown                 */
-    set_palette_entry(24,  60,  60,  60);   /* grey                  */
-    set_palette_entry(25, 100, 100, 100);   /* light grey            */
-    set_palette_entry(26,  80, 140, 200);   /* sky blue              */
-    set_palette_entry(27, 100, 180, 100);   /* light green           */
-    set_palette_entry(28, 200,  80,  80);   /* salmon                */
-    set_palette_entry(29, 200,  80, 200);   /* pink                  */
-    set_palette_entry(30, 200, 200, 100);   /* light yellow          */
-    set_palette_entry(31, 220, 220, 220);   /* near-white            */
+    /* Colours 16-31: refined UI palette */
+    set_palette_entry(16,  16,  16,  24);   /* 16: window bg / deep shadow  */
+    set_palette_entry(17,  32,  36,  52);   /* 17: desktop background       */
+    set_palette_entry(18,  48,  52,  72);   /* 18: icon bg / panel          */
+    set_palette_entry(19,  28,  68,  32);   /* 19: dark green               */
+    set_palette_entry(20, 180,  56,  56);   /* 20: accent red               */
+    set_palette_entry(21,  88,  88,  48);   /* 21: olive                    */
+    set_palette_entry(22,  42,  62, 140);   /* 22: title bar active (blue)  */
+    set_palette_entry(23, 120,  72,  36);   /* 23: brown                    */
+    set_palette_entry(24,  72,  72,  82);   /* 24: taskbar / inactive       */
+    set_palette_entry(25, 120, 120, 132);   /* 25: bevel highlight / light  */
+    set_palette_entry(26,  68, 108, 176);   /* 26: title bar highlight      */
+    set_palette_entry(27,  92, 172,  92);   /* 27: success green            */
+    set_palette_entry(28, 200,  80,  80);   /* 28: salmon                   */
+    set_palette_entry(29, 180,  72, 180);   /* 29: pink                     */
+    set_palette_entry(30, 200, 200, 100);   /* 30: light yellow             */
+    set_palette_entry(31, 212, 212, 220);   /* 31: near-white (win bg)      */
 
-    /* Colours 32-255: 6×6×6 colour cube + greys */
+    /* Colours 32-255: 6x6x6 colour cube + greys */
     for (int i = 32; i < 256; i++) {
         int idx = i - 32;
         if (idx < 216) {

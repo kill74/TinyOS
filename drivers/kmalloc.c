@@ -33,6 +33,7 @@
 #include "../include/kmalloc.h"
 #include "../include/vga.h"
 #include "../include/log.h"
+#include "../include/panic.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -108,13 +109,9 @@ static void block_write(block_header_t *h, size_t size, uint8_t free)
 }
 
 /* ── Halt helper ─────────────────────────────────────────────────────────── */
-static void kernel_panic(void)
+static void heap_panic(void)
 {
-    __asm__ __volatile__("cli; hlt");
-    /* unreachable — silences compiler "no return" warnings */
-    while (1)
-    {
-    }
+    kernel_panic("Heap corruption detected");
 }
 
 /* ── Public: initialise ───────────────────────────────────────────────────── */
@@ -155,7 +152,7 @@ void *kmalloc(size_t size)
     {
         vga_set_color(VGA_WHITE, VGA_RED);
         vga_printf("\n[kmalloc] OUT OF MEMORY (need %u bytes)\n", (unsigned)size);
-        kernel_panic();
+        heap_panic();
         return NULL;
     }
 
@@ -197,7 +194,7 @@ void kfree(void *ptr)
         else
             vga_printf("\n[kfree] INVALID PTR 0x%x (magic=0x%x)\n",
                        (unsigned)(uint32_t)ptr, h->magic);
-        kernel_panic();
+        heap_panic();
         return;
     }
 
@@ -256,7 +253,7 @@ void kmalloc_check(void)
 
     if (bad)
     {
-        kernel_panic();
+        heap_panic();
     }
 }
 

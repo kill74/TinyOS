@@ -12,7 +12,7 @@
 
 #include "../include/idt.h"
 #include "../include/log.h"
-#include "../include/vga.h"
+#include "../include/panic.h"
 #include <stdint.h>
 
 /* ── IDT structures ───────────────────────────────────────────────────────── */
@@ -44,6 +44,7 @@ extern void isr21(void); extern void isr22(void); extern void isr23(void);
 extern void isr24(void); extern void isr25(void); extern void isr26(void);
 extern void isr27(void); extern void isr28(void); extern void isr29(void);
 extern void isr30(void); extern void isr31(void);
+extern void isr128(void);
 
 extern void irq0(void);  extern void irq1(void);  extern void irq2(void);
 extern void irq3(void);  extern void irq4(void);  extern void irq5(void);
@@ -62,29 +63,12 @@ void isr_register_handler(uint8_t num, isr_t handler) {
     isr_handlers[num] = handler;
 }
 
-/* ── Human-readable exception names ──────────────────────────────────────── */
-static const char *exception_names[] = {
-    "Division Error",          "Debug",
-    "Non-Maskable Interrupt",  "Breakpoint",
-    "Overflow",                "Bound Range Exceeded",
-    "Invalid Opcode",          "Device Not Available",
-    "Double Fault",            "Coprocessor Segment Overrun",
-    "Invalid TSS",             "Segment Not Present",
-    "Stack Fault",             "General Protection Fault",
-    "Page Fault",              "Reserved",
-    "x87 FPU Error",           "Alignment Check",
-    "Machine Check",           "SIMD Exception",
-};
-#define N_NAMED_EXCEPTIONS 20
-
 /* ── C-level exception dispatcher ────────────────────────────────────────── */
 /* Called by isr_common in isr.S with a pointer to the saved register frame. */
 void isr_handler(registers_t *regs) {
     /* Defensive bounds check before indexing the handler table. */
     if (regs->int_no >= 256) {
-        vga_set_color(VGA_WHITE, VGA_RED);
-        vga_printf("\n  *** BOGUS INTERRUPT %u — HALTING ***\n", regs->int_no);
-        __asm__ __volatile__("cli; hlt");
+        kernel_panic("Bogus interrupt vector %u", regs->int_no);
         return;
     }
 
@@ -94,23 +78,8 @@ void isr_handler(registers_t *regs) {
         return;
     }
 
-    /* Default: print a panic message and halt. */
-    vga_set_color(VGA_WHITE, VGA_RED);
-    vga_puts("\n\n  *** KERNEL EXCEPTION ***\n");
-
-    const char *name = (regs->int_no < N_NAMED_EXCEPTIONS)
-                       ? exception_names[regs->int_no]
-                       : "Unknown";
-
-    vga_printf("  Exception %u: %s\n", regs->int_no, name);
-    vga_printf("  Error code : 0x%x\n", regs->err_code);
-    vga_printf("  EIP=0x%x  CS=0x%x  EFLAGS=0x%x\n",
-               regs->eip, regs->cs, regs->eflags);
-    vga_printf("  EAX=0x%x  EBX=0x%x  ECX=0x%x  EDX=0x%x\n",
-               regs->eax, regs->ebx, regs->ecx, regs->edx);
-
-    /* Halt — there's no safe way to continue after an unhandled exception. */
-    __asm__ __volatile__("cli; hlt");
+    /* Default: use the full panic handler for diagnostics. */
+    kernel_panic_exception(regs);
 }
 
 /* ── Internal: set one IDT gate ───────────────────────────────────────────── */
@@ -187,6 +156,10 @@ void init_idt(void) {
     idt_set_gate(45, (uint32_t)irq13, 0x08, 0x8E);
     idt_set_gate(46, (uint32_t)irq14, 0x08, 0x8E);
     idt_set_gate(47, (uint32_t)irq15, 0x08, 0x8E);
+
+    /* Install syscall gate (vector 0x80) — DPL=3 so ring-3 can use int 0x80 */
+    idt_set_gate(0x80, (uint32_t)isr128, 0x08, 0xEE);
+    /*    flags 0xEE = Present, DPL=3, 32-bit trap gate */
 
     idt_load((uint32_t)&idtp);
     LOG_INFO("IDT initialized with 256 entries");

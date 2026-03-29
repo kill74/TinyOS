@@ -9,12 +9,13 @@
 #define SYS_GETPID 3
 #define SYS_YIELD 4
 #define SYS_SLEEP 5
-#define SYS_SETLOG 7
 #define SYS_READ 6
+#define SYS_SETLOG 7
 #define SYS_FORK 8
 #define SYS_EXEC 9
 #define SYS_SBRK 10
 #define SYS_WAIT 11
+#define SYS_EXECELF 12
 
 /* Syscall handler prototype */
 void syscall_handler(registers_t *regs);
@@ -127,6 +128,17 @@ static inline int32_t sys_wait(int32_t *status_ptr)
         "int $0x80"
         : "=a"(ret)
         : "0"(SYS_WAIT), "b"(status_ptr)
+        : "memory");
+    return ret;
+}
+
+static inline int32_t sys_execelf(const void *data, uint32_t size)
+{
+    int32_t ret;
+    __asm__ __volatile__(
+        "int $0x80"
+        : "=a"(ret)
+        : "0"(SYS_EXECELF), "b"(data), "c"(size)
         : "memory");
     return ret;
 }

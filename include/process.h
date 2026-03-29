@@ -9,6 +9,7 @@
 #define USR_STACK_SIZE 8192
 #define USER_HEAP_START 0x100000
 #define USER_HEAP_END   0x400000
+#define USER_STACK_TOP  0x00A00000
 
 /* Process states */
 typedef enum
@@ -62,12 +63,14 @@ typedef struct
 
 /* Function prototypes */
 void init_processing(void);
-int proc_create(void (*entry_point)(void), int pid);
+int proc_create(void (*entry_point)(void), int pid, int mode);
 void schedule(void);
-void switch_to_user(void);
 void yield(void);
 void proc_sleep_ticks(uint32_t ticks);
 void proc_tick(uint32_t current_tick);
+void preempt_disable(void);
+void preempt_enable(void);
+void preempt(void);
 extern pcb_t *current_proc;
 extern pcb_t proc_table[MAX_PROCESSES];
 extern int next_pid;

@@ -15,6 +15,7 @@
 #include "../gui/font.h"
 #include "../include/log.h"
 #include "../include/timer.h"
+#include "../include/rtc.h"
 #include "../include/keyboard.h"
 #include "../fs/fs.h"
 #include <stdint.h>
@@ -32,17 +33,25 @@ static void *gui_memcpy(void *dst, const void *src, int n)
 #define C_DESKTOP       17    /* dark blue-grey */
 #define C_TASKBAR       24    /* grey */
 #define C_TASKBAR_HI    25    /* light grey */
+#define C_TASKBAR_SHADOW 16   /* very dark — under taskbar */
 #define C_TITLE_ACT     22    /* royal blue */
+#define C_TITLE_ACT_HI  26    /* brighter blue for gradient */
 #define C_TITLE_INACT   24    /* grey */
-#define C_WIN_BG        16    /* very dark */
-#define C_BORDER        15    /* white */
-#define C_CLOSE_BTN     12    /* red */
+#define C_TITLE_INACT_HI 25   /* light grey for gradient */
+#define C_WIN_BG        31    /* near-white window background */
+#define C_WIN_CLIENT    16    /* very dark client area */
+#define C_BORDER_LIGHT  25    /* light bevel highlight */
+#define C_BORDER_DARK   16    /* dark bevel shadow */
+#define C_BORDER        15    /* white outline */
+#define C_CLOSE_BTN     200   /* red (palette 200+ is in the 6x6x6 cube) */
 #define C_CLOSE_HI      COL_WHITE
+#define C_MIN_BTN       140   /* yellow-green */
 #define C_TERMINAL_BG   0     /* black */
 #define C_TERMINAL_FG   10    /* green */
 #define C_TERMINAL_PR   15    /* white prompt */
 #define C_PAINT_BG      15    /* white canvas */
-#define C_TEXT          15    /* white */
+#define C_TEXT          0     /* black text on light bg */
+#define C_TEXT_LIGHT    15    /* white text on dark bg */
 #define C_TEXT_DIM      7     /* light grey */
 #define C_ICON_BG       18    /* medium blue-grey */
 #define C_ICON_HI       26    /* sky blue */
@@ -169,42 +178,62 @@ static void draw_taskbar(void)
 {
     int tb_y = SCREEN_H - TASKBAR_H;
 
+    /* Taskbar shadow line */
+    gfx_hline(0, tb_y - 1, SCREEN_W, C_TASKBAR_SHADOW);
+
     /* Taskbar background */
     gfx_fill_rect(0, tb_y, SCREEN_W, TASKBAR_H, C_TASKBAR);
 
-    /* Top border */
-    gfx_hline(0, tb_y, SCREEN_W, C_BORDER);
+    /* Top highlight (3D bevel) */
+    gfx_hline(0, tb_y, SCREEN_W, C_BORDER_LIGHT);
 
     /* App icons on taskbar */
     const char *app_labels[] = { "Term", "Clock", "Paint", "About" };
-    int x = 5;
+    int x = 4;
     for (int i = 0; i < 4; i++) {
-        gfx_fill_rect(x, tb_y + 2, 42, 14, C_ICON_BG);
-        gfx_rect(x, tb_y + 2, 42, 14, C_TASKBAR_HI);
-        font_draw_string(x + 3, tb_y + 5, app_labels[i], C_TEXT, C_ICON_BG);
-        x += 46;
+        /* 3D beveled button */
+        gfx_fill_rect(x, tb_y + 2, 44, 14, C_TASKBAR_HI);
+        gfx_hline(x, tb_y + 2, 44, C_BORDER_LIGHT);
+        gfx_vline(x, tb_y + 2, 14, C_BORDER_LIGHT);
+        gfx_hline(x, tb_y + 15, 44, C_TASKBAR_SHADOW);
+        gfx_vline(x + 43, tb_y + 2, 14, C_TASKBAR_SHADOW);
+        font_draw_string(x + 8, tb_y + 5, app_labels[i], C_TEXT, C_TASKBAR_HI);
+        x += 48;
     }
 
-    /* Clock on right side of taskbar */
-    uint32_t ticks = timer_get_ticks();
-    uint32_t secs = ticks / 100;
-    uint32_t mins = secs / 60;
-    uint32_t hrs = (mins / 60) % 24;
-    mins %= 60;
-    secs %= 60;
-
+    /* Clock on right side — uses CMOS RTC for real time */
     char time_str[9];
-    time_str[0] = '0' + (hrs / 10);
-    time_str[1] = '0' + (hrs % 10);
-    time_str[2] = ':';
-    time_str[3] = '0' + (mins / 10);
-    time_str[4] = '0' + (mins % 10);
-    time_str[5] = ':';
-    time_str[6] = '0' + (secs / 10);
-    time_str[7] = '0' + (secs % 10);
-    time_str[8] = '\0';
+    rtc_time_str(time_str);
 
-    font_draw_string(SCREEN_W - 60, tb_y + 5, time_str, C_TEXT, C_TASKBAR);
+    /* Clock background pill */
+    int clk_x = SCREEN_W - 62;
+    gfx_fill_rect(clk_x, tb_y + 2, 58, 14, C_TASKBAR_HI);
+    gfx_hline(clk_x, tb_y + 2, 58, C_BORDER_LIGHT);
+    gfx_vline(clk_x, tb_y + 2, 14, C_BORDER_LIGHT);
+    gfx_hline(clk_x, tb_y + 15, 58, C_TASKBAR_SHADOW);
+    gfx_vline(clk_x + 57, tb_y + 2, 14, C_TASKBAR_SHADOW);
+    font_draw_string(clk_x + 10, tb_y + 5, time_str, C_TEXT, C_TASKBAR_HI);
+}
+
+static void draw_desktop_icons(void);
+
+static void draw_desktop_bg(void)
+{
+    /* Base fill */
+    gfx_clear(C_DESKTOP);
+
+    /* Subtle horizontal gradient — top slightly lighter */
+    for (int y = 0; y < SCREEN_H - TASKBAR_H; y += 4) {
+        uint8_t shade = (uint8_t)(C_DESKTOP + (y < 40 ? 1 : 0));
+        gfx_hline(0, y, SCREEN_W, shade);
+    }
+
+    /* Faint grid pattern */
+    for (int y = 20; y < SCREEN_H - TASKBAR_H; y += 40) {
+        for (int x = 80; x < SCREEN_W; x += 40) {
+            gfx_pixel(x, y, C_ICON_BG);
+        }
+    }
 }
 
 static void draw_desktop_icons(void)
@@ -213,18 +242,19 @@ static void draw_desktop_icons(void)
         int ix = icons[i].x;
         int iy = icons[i].y;
 
-        /* Icon background */
+        /* Icon background with 3D bevel */
         gfx_fill_rect(ix, iy, 40, 36, C_ICON_BG);
-        gfx_rect(ix, iy, 40, 36, C_ICON_HI);
+        gfx_hline(ix, iy, 40, C_BORDER_LIGHT);
+        gfx_vline(ix, iy, 36, C_BORDER_LIGHT);
+        gfx_hline(ix, iy + 35, 40, C_TASKBAR_SHADOW);
+        gfx_vline(ix + 39, iy, 36, C_TASKBAR_SHADOW);
 
-        /* Icon symbol (simple coloured square) */
-        uint8_t sym_col = (i == 0) ? C_TERMINAL_FG :
-                          (i == 1) ? COL_YELLOW :
-                          (i == 2) ? COL_RED : COL_CYAN;
-        gfx_fill_rect(ix + 12, iy + 4, 16, 16, sym_col);
+        /* Icon symbol — unique per app */
+        static const uint8_t sym_cols[] = { 10, 14, 12, 11 };
+        gfx_fill_rect(ix + 12, iy + 4, 16, 16, sym_cols[i]);
 
         /* Label */
-        font_draw_string(ix + 2, iy + 24, icons[i].label, C_TEXT, C_ICON_BG);
+        font_draw_string(ix + 2, iy + 24, icons[i].label, C_TEXT_LIGHT, C_ICON_BG);
     }
 }
 
@@ -237,25 +267,48 @@ static void draw_window(window_t *w, int focused)
     int wi = w->w;
     int hi = w->h + TITLEBAR_H;
 
-    /* Shadow */
+    /* Drop shadow */
     gfx_fill_rect(x + 3, y + 3, wi, hi, COL_BLACK);
 
+    /* Outer border (dark) */
+    gfx_rect(x, y, wi, hi, C_BORDER_DARK);
+
     /* Window background */
-    gfx_fill_rect(x, y, wi, hi, C_WIN_BG);
+    gfx_fill_rect(x + 1, y + 1, wi - 2, hi - 2, C_WIN_BG);
+
+    /* 3D bevel — light edges */
+    gfx_hline(x + 1, y + 1, wi - 2, C_BORDER_LIGHT);
+    gfx_vline(x + 1, y + 1, hi - 2, C_BORDER_LIGHT);
+
+    /* 3D bevel — dark edges */
+    gfx_hline(x + 1, y + hi - 2, wi - 2, C_BORDER_DARK);
+    gfx_vline(x + wi - 2, y + 1, hi - 2, C_BORDER_DARK);
 
     /* Title bar */
-    uint8_t tc = focused ? C_TITLE_ACT : C_TITLE_INACT;
-    gfx_fill_rect(x, y, wi, TITLEBAR_H, tc);
+    uint8_t tc  = focused ? C_TITLE_ACT : C_TITLE_INACT;
+    uint8_t tch = focused ? C_TITLE_ACT_HI : C_TITLE_INACT_HI;
+
+    /* Gradient title bar (top half lighter) */
+    gfx_fill_rect(x + 2, y + 2, wi - 4, TITLEBAR_H / 2, tch);
+    gfx_fill_rect(x + 2, y + 2 + TITLEBAR_H / 2, wi - 4,
+                  TITLEBAR_H - TITLEBAR_H / 2, tc);
 
     /* Title text */
-    font_draw_string(x + 4, y + 3, w->title, C_TEXT, tc);
+    font_draw_string(x + 5, y + 3, w->title, C_TEXT_LIGHT, tc);
 
-    /* Close button */
-    gfx_fill_rect(x + wi - 11, y + 2, 9, 8, C_CLOSE_BTN);
-    font_draw_string(x + wi - 9, y + 3, "x", C_CLOSE_HI, C_CLOSE_BTN);
-
-    /* Border */
-    gfx_rect(x, y, wi, hi, C_BORDER);
+    /* Close button — 3D beveled with X */
+    int cbx = x + wi - 12;
+    int cby = y + 2;
+    gfx_fill_rect(cbx, cby, 9, 9, C_CLOSE_BTN);
+    gfx_hline(cbx, cby, 9, COL_WHITE);
+    gfx_vline(cbx, cby, 9, COL_WHITE);
+    gfx_hline(cbx, cby + 8, 9, COL_BLACK);
+    gfx_vline(cbx + 8, cby, 9, COL_BLACK);
+    /* X mark */
+    for (int i = 1; i < 7; i++) {
+        gfx_pixel(cbx + 1 + i, cby + 1 + i, COL_WHITE);
+        gfx_pixel(cbx + 7 - i, cby + 1 + i, COL_WHITE);
+    }
 
     /* Draw app content */
     win_draw(w, focused);
@@ -315,56 +368,37 @@ static void win_draw(window_t *w, int focused)
     case APP_CLOCK: {
         gfx_fill_rect(cx, cy, cw, ch, C_WIN_BG);
 
-        uint32_t ticks = timer_get_ticks();
-        uint32_t secs = ticks / 100;
-        uint32_t mins = secs / 60;
-        uint32_t hrs = (mins / 60) % 24;
-        mins %= 60;
-        secs %= 60;
+        /* Read real time from CMOS RTC */
+        char buf[9];
+        rtc_time_str(buf);
 
-        /* Large time display */
-        char buf[16];
-        buf[0] = '0' + (hrs / 10);
-        buf[1] = '0' + (hrs % 10);
-        buf[2] = ':';
-        buf[3] = '0' + (mins / 10);
-        buf[4] = '0' + (mins % 10);
-        buf[5] = ':';
-        buf[6] = '0' + (secs / 10);
-        buf[7] = '0' + (secs % 10);
-        buf[8] = '\0';
-
-        /* Draw time centered, scaled up (2x) */
+        /* Large time display — 2x scaled */
         int tx = cx + (cw - 8 * FONT_W * 2) / 2;
-        int ty = cy + (ch - FONT_H * 2) / 2;
+        int ty = cy + (ch - FONT_H * 2) / 2 - 8;
         for (int i = 0; buf[i]; i++) {
             const uint8_t *glyph = font_get_glyph(buf[i]);
             for (int row = 0; row < FONT_H; row++) {
                 for (int col = 0; col < FONT_W; col++) {
                     if (glyph[row] & (0x80 >> col)) {
                         gfx_fill_rect(tx + i * FONT_W * 2 + col * 2,
-                                      ty + row * 2, 2, 2, COL_CYAN);
+                                      ty + row * 2, 2, 2, C_TITLE_ACT);
                     }
                 }
             }
         }
 
         /* Tick count below */
-        char ts[16];
-        int t = (int)ticks;
-        int p = 0;
-        char tmp[12];
-        if (t == 0) { tmp[0] = '0'; p = 1; }
-        else {
-            while (t > 0 && p < 12) { tmp[p++] = '0' + (t % 10); t /= 10; }
-        }
+        uint32_t ticks = timer_get_ticks();
+        char ts[20];
         int pos = 0;
-        ts[pos++] = 'T'; ts[pos++] = 'i'; ts[pos++] = 'c'; ts[pos++] = 'k';
-        ts[pos++] = 's'; ts[pos++] = ':';
-        ts[pos++] = ' ';
+        ts[pos++] = 'U'; ts[pos++] = 'p'; ts[pos++] = ' ';
+        int t = (int)(ticks / 100);
+        char tmp[12]; int p = 0;
+        if (t == 0) { tmp[0] = '0'; p = 1; }
+        else { while (t > 0 && p < 12) { tmp[p++] = '0' + (t % 10); t /= 10; } }
         for (int i = p - 1; i >= 0; i--) ts[pos++] = tmp[i];
-        ts[pos] = '\0';
-        font_draw_string(cx + 8, ty + FONT_H * 2 + 10, ts, C_TEXT_DIM, C_WIN_BG);
+        ts[pos++] = 's'; ts[pos] = '\0';
+        font_draw_string(cx + 8, ty + FONT_H * 2 + 12, ts, C_TEXT_DIM, C_WIN_BG);
         break;
     }
 
@@ -400,11 +434,12 @@ static void win_draw(window_t *w, int focused)
 
     case APP_ABOUT: {
         gfx_fill_rect(cx, cy, cw, ch, C_WIN_BG);
-        font_draw_string(cx + 10, cy + 10, "TinyOS v0.1", C_TERMINAL_FG, C_WIN_BG);
-        font_draw_string(cx + 10, cy + 22, "A minimal x86 kernel", C_TEXT_DIM, C_WIN_BG);
-        font_draw_string(cx + 10, cy + 38, "with GUI, networking,", C_TEXT_DIM, C_WIN_BG);
-        font_draw_string(cx + 10, cy + 50, "and TCP/IP stack.", C_TEXT_DIM, C_WIN_BG);
-        font_draw_string(cx + 10, cy + 70, "Built with <3", C_TERMINAL_FG, C_WIN_BG);
+        font_draw_string(cx + 10, cy + 8,  "TinyOS v0.2", C_TITLE_ACT, C_WIN_BG);
+        font_draw_string(cx + 10, cy + 22, "A minimal x86 kernel", C_TEXT, C_WIN_BG);
+        font_draw_string(cx + 10, cy + 34, "with preemptive scheduling,", C_TEXT, C_WIN_BG);
+        font_draw_string(cx + 10, cy + 46, "ELF loading, user mode,", C_TEXT, C_WIN_BG);
+        font_draw_string(cx + 10, cy + 58, "GUI, networking & TCP/IP.", C_TEXT, C_WIN_BG);
+        font_draw_string(cx + 10, cy + 74, "github.com/kill74/TinyOS", C_TEXT_DIM, C_WIN_BG);
         break;
     }
 
@@ -428,7 +463,7 @@ static void term_init(term_t *t)
     t->bg = 0;
 
     /* Welcome message */
-    const char *w1 = "TinyOS Terminal v0.1";
+    const char *w1 = "TinyOS Terminal v0.2";
     const char *w2 = "Type 'help' for commands";
     int i;
     for (i = 0; w1[i] && i < TERM_COLS; i++) t->lines[0][i] = w1[i];
@@ -535,7 +570,7 @@ static void term_exec(term_t *t, const char *cmd)
     if (cmd[0] == 'h' && cmd[1] == 'e' && cmd[2] == 'l' && cmd[3] == 'p' && cmd[4] == '\0') {
         term_output(t, "Commands:\nhelp echo clear ver\nmem date ls touch\nrm cat write fsinfo");
     } else if (cmd[0] == 'v' && cmd[1] == 'e' && cmd[2] == 'r' && cmd[3] == '\0') {
-        term_output(t, "TinyOS v0.1\nGUI Desktop Edition");
+        term_output(t, "TinyOS v0.2\nGUI Desktop Edition");
     } else if (cmd[0] == 'c' && cmd[1] == 'l' && cmd[2] == 'e' &&
                cmd[3] == 'a' && cmd[4] == 'r' && cmd[5] == '\0') {
         term_init(t);
@@ -717,7 +752,7 @@ void gui_run(void)
                     int hi = win->h + TITLEBAR_H;
 
                     /* Close button */
-                    if (point_in_rect(mx, my, wx + wi - 11, wy + 2, 9, 8)) {
+                    if (point_in_rect(mx, my, wx + wi - 12, wy + 2, 9, 9)) {
                         gui_close_window(w);
                         needs_redraw = 1;
                         break;
@@ -804,7 +839,7 @@ void gui_run(void)
         /* ── Render ───────────────────────────────────────────────────── */
         if (needs_redraw) {
             /* Desktop background */
-            gfx_clear(C_DESKTOP);
+            draw_desktop_bg();
 
             /* Desktop icons */
             draw_desktop_icons();
